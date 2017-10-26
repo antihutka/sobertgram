@@ -67,8 +67,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 def sendreply(bot, ci, fro):
   bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
+  sys.stdout.write('  => ')
+  sys.stdout.flush()
   msg = get(ci)
-  print('  => ' + msg)
+  print(msg)
   log(ci, fro, 1, msg)
   bot.sendMessage(chat_id=ci, text=msg)
 
@@ -100,6 +102,14 @@ def me(bot, update):
   getmessage(bot, ci, fro, txt)
   sendreply(bot, ci, fro)
 
+def sticker(bot, update):
+  ci = update.message.chat_id
+  fro = update.message.from_user.username
+  st = update.message.sticker
+  set = '<unnamed>' if st.set_name is None else st.set_name
+  emo = st.emoji or ''
+  print('%s/%d: [sticker <%s> <%s> < %s >]' % (fro, ci, st.file_id, set, emo))
+
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
 Config.read(sys.argv[1])
@@ -108,6 +118,7 @@ updater = Updater(token=Config.get('Telegram','Token'))
 dispatcher = updater.dispatcher
 
 dispatcher.add_handler(MessageHandler(Filters.text, msg))
+dispatcher.add_handler(MessageHandler(Filters.sticker, sticker))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('me', me))
 
