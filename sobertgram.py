@@ -56,21 +56,31 @@ def get(convid):
     del convos[convid]
     return ''
 
+def chatname(chat):
+  try:
+    if chat.title:
+      return chat.title
+    else:
+      return chat.first_name + ' ' + chat.last_name
+  except Exception as e:
+    print str(e)
+    return '<err>'
+
 def get_dbcon():
   db = MySQLdb.connect(host=Config.get('Database', 'Host'), user=Config.get('Database', 'User'), passwd=Config.get('Database', 'Password'), db=Config.get('Database', 'Database'), charset='utf8')
   cur = db.cursor()
   cur.execute('SET NAMES utf8mb4')
   return db, cur
 
-def log(conv, username, sent, text):
+def log(conv, username, fromname, sent, text):
   db, cur = get_dbcon()
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `sent`, `text`) VALUES (%s, %s, %s, %s)", (conv, username, sent, text))
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s)", (conv, username, fromname, sent, text))
   db.commit()
   db.close()
 
-def log_sticker(conv, username, sent, text, file_id, set_name):
+def log_sticker(conv, username, fromname, sent, text, file_id, set_name):
   db, cur = get_dbcon()
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `sent`, `text`) VALUES (%s, %s, %s, %s)", (conv, username, sent, text))
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s)", (conv, username, fromname, sent, text))
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
   if file_id not in known_stickers:
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
@@ -92,61 +102,64 @@ def rand_sticker():
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-def sendreply(bot, ci, fro):
+def sendreply(bot, ci, fro, fron):
   bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
   sys.stdout.write('  => ')
   sys.stdout.flush()
   msg = get(ci)
   print(msg)
-  log(ci, fro, 1, msg)
+  log(ci, fro, fron, 1, msg)
   bot.sendMessage(chat_id=ci, text=msg)
 
-def getmessage(bot, ci, fro, txt):
-  print('%s/%d: %s' % (fro, ci, txt))
+def getmessage(bot, ci, fro, fron, txt):
+  print('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
-  log(ci, fro, 0, txt)
+  log(ci, fro, fron, 0, txt)
 
 
 def msg(bot, update):
   ci = update.message.chat_id
   txt = update.message.text
   fro = update.message.from_user.username
-  getmessage(bot, ci, fro, txt)
+  fron = chatname(update.message.chat)
+  getmessage(bot, ci, fro, fron, txt)
   if (ci > 0) or (randint(0, 100) < 2) or (Config.get('Chat', 'Keyword') in txt.lower()):
-    sendreply(bot, ci, fro)
+    sendreply(bot, ci, fro, fron)
   convclean()
 
 def start(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
   print('%s/%d /start' % (fro, ci))
-  sendreply(bot, ci, fro)
+  sendreply(bot, ci, fro, fron)
 
 def me(bot, update):
   ci = update.message.chat_id
   txt = update.message.text
   fro = update.message.from_user.username
-  getmessage(bot, ci, fro, txt)
-  sendreply(bot, ci, fro)
+  fron = chatname(update.message.chat)
+  getmessage(bot, ci, fro, fron, txt)
+  sendreply(bot, ci, fro, fron)
 
 def sticker(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
+  fron = chatname(update.message.chat)
   st = update.message.sticker
   set = '<unnamed>' if st.set_name is None else st.set_name
   emo = st.emoji or ''
-  print('%s/%d: [sticker <%s> <%s> < %s >]' % (fro, ci, st.file_id, set, emo))
+  print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, 0, emo, st.file_id, set)
+  log_sticker(ci, fro, fron, 0, emo, st.file_id, set)
   #bot.sendSticker(chat_id=ci, sticker=st.file_id)
   if (ci > 0) or (randint(0, 100) < 2):
-    sendreply(bot, ci, fro)
+    sendreply(bot, ci, fro, fron)
 
 def givesticker(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
   fid, emo, set = rand_sticker()
-  print('%s/%d: [giving random sticker: <%s> <%s>]' % (fro, ci, fid, set))
+  print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
   bot.sendSticker(chat_id=ci, sticker=fid)
 
 if len(sys.argv) != 2:
