@@ -1,4 +1,5 @@
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, ChatAction
+from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
+from telegram import ChatAction
 import logging
 import socket
 import MySQLdb
