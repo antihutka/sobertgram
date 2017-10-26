@@ -1,4 +1,4 @@
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
+from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, ChatAction
 import logging
 import socket
 import MySQLdb
@@ -65,6 +65,7 @@ def log(conv, username, sent, text):
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 def sendreply(bot, ci, fro):
+  bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
   msg = get(ci)
   print('  => ' + msg)
   log(ci, fro, 1, msg)
