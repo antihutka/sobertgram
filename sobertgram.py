@@ -11,9 +11,9 @@ import ConfigParser
 
 Config = ConfigParser.ConfigParser()
 
-timeout = 60*60*24*2
 convos = {}
 times = {}
+known_stickers = set()
 
 def getconv(convid):
   if convid not in convos:
@@ -36,6 +36,8 @@ def convclean():
       del convos[convid]
 
 def put(convid, text):
+  if text == '':
+    return
   text = re.sub('[\r\n]+', '\n',text).strip("\r\n")
   try:
     (s, f) = getconv(convid)
@@ -54,13 +56,32 @@ def get(convid):
     del convos[convid]
     return ''
 
-def log(conv, username, sent, text):
+def get_dbcon():
   db = MySQLdb.connect(host=Config.get('Database', 'Host'), user=Config.get('Database', 'User'), passwd=Config.get('Database', 'Password'), db=Config.get('Database', 'Database'), charset='utf8')
   cur = db.cursor()
   cur.execute('SET NAMES utf8mb4')
+  return db, cur
+
+def log(conv, username, sent, text):
+  db, cur = get_dbcon()
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `sent`, `text`) VALUES (%s, %s, %s, %s)", (conv, username, sent, text))
   db.commit()
   db.close()
+
+def log_sticker(conv, username, sent, text, file_id, set_name):
+  db, cur = get_dbcon()
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `sent`, `text`) VALUES (%s, %s, %s, %s)", (conv, username, sent, text))
+  cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
+  if file_id not in known_stickers:
+    cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
+    (exists,) = cur.fetchone()
+    if exists == 0:
+      print "Adding sticker <%s> <%s> < %s >" %  (file_id, set_name, text)
+      cur.execute("REPLACE INTO `stickers` (`file_id`, `emoji`, `set_name`) VALUES (%s, %s, %s)", (file_id, text, set_name))
+  db.commit()
+  db.close()
+  if file_id not in known_stickers:
+    known_stickers.add(file_id)
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -109,6 +130,9 @@ def sticker(bot, update):
   set = '<unnamed>' if st.set_name is None else st.set_name
   emo = st.emoji or ''
   print('%s/%d: [sticker <%s> <%s> < %s >]' % (fro, ci, st.file_id, set, emo))
+  put(ci, emo)
+  log_sticker(ci, fro, 0, emo, st.file_id, set)
+  bot.sendSticker(chat_id=ci, sticker=st.file_id)
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
