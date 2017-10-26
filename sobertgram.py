@@ -13,6 +13,7 @@ Config = ConfigParser.ConfigParser()
 timeout = 60*60*24*2
 convos = {}
 times = {}
+
 def getconv(convid):
   if convid not in convos:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,13 +57,19 @@ def log(conv, username, sent, text):
   db = MySQLdb.connect(host=Config.get('Database', 'Host'), user=Config.get('Database', 'User'), passwd=Config.get('Database', 'Password'), db=Config.get('Database', 'Database'), charset='utf8')
   cur = db.cursor()
   cur.execute('SET NAMES utf8mb4')
-  #print("%s" % ((conv, username, sent, text),))
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `sent`, `text`) VALUES (%s, %s, %s, %s)", (conv, username, sent, text))
   db.commit()
   db.close()
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+def sendreply(bot, ci, fro):
+  msg = get(ci)
+  print('  => ' + msg)
+  log(ci, fro, 1, msg)
+  bot.sendMessage(chat_id=ci, text=msg)
+
 
 def msg(bot, update):
   ci = update.message.chat_id
@@ -72,20 +79,14 @@ def msg(bot, update):
   put(ci, txt)
   log(ci, fro, 0, txt)
   if (ci > 0) or (randint(0, 100) < 2) or (Config.get('Chat', 'Keyword') in txt.lower()):
-    msg = get(ci)
-    print('  => ' + msg)
-    log(ci, fro, 1, msg)
-    bot.sendMessage(chat_id=update.message.chat_id, text=msg)
+    sendreply(bot, ci, fro)
   convclean()
 
 def start(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
   print('%s/%d /start' % (fro, ci))
-  msg = get(ci)
-  print(' => ' + msg)
-  log(ci, fro, 1, msg)
-  bot.sendMessage(chat_id=ci, text=msg)
+  sendreply(bot, ci, fro)
 
 def me(bot, update):
   ci = update.message.chat_id
@@ -94,10 +95,7 @@ def me(bot, update):
   print('%s/%d %s' % (fro, ci, txt))
   put(ci, txt)
   log(ci, fro, 0, txt)
-  msg = get(ci)
-  print('  => ' + msg)
-  log(ci, fro, 1, msg)
-  bot.sendMessage(chat_id=update.message.chat_id, text=msg)
+  sendreply(bot, ci, fro)
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
