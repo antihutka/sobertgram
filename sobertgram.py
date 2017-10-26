@@ -72,14 +72,17 @@ def sendreply(bot, ci, fro):
   log(ci, fro, 1, msg)
   bot.sendMessage(chat_id=ci, text=msg)
 
+def getmessage(bot, ci, fro, txt):
+  print('%s/%d: %s' % (fro, ci, txt))
+  put(ci, txt)
+  log(ci, fro, 0, txt)
+
 
 def msg(bot, update):
   ci = update.message.chat_id
   txt = update.message.text
   fro = update.message.from_user.username
-  print('%s/%d: %s' % (fro, ci, txt))
-  put(ci, txt)
-  log(ci, fro, 0, txt)
+  getmessage(bot, ci, fro, txt)
   if (ci > 0) or (randint(0, 100) < 2) or (Config.get('Chat', 'Keyword') in txt.lower()):
     sendreply(bot, ci, fro)
   convclean()
@@ -94,9 +97,7 @@ def me(bot, update):
   ci = update.message.chat_id
   txt = update.message.text
   fro = update.message.from_user.username
-  print('%s/%d %s' % (fro, ci, txt))
-  put(ci, txt)
-  log(ci, fro, 0, txt)
+  getmessage(bot, ci, fro, txt)
   sendreply(bot, ci, fro)
 
 if len(sys.argv) != 2:
