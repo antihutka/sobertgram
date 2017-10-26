@@ -83,6 +83,12 @@ def log_sticker(conv, username, sent, text, file_id, set_name):
   if file_id not in known_stickers:
     known_stickers.add(file_id)
 
+def rand_sticker():
+  db, cur = get_dbcon()
+  cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` ORDER BY RAND() LIMIT 1")
+  row = cur.fetchone()
+  db.close()
+  return row
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -132,7 +138,16 @@ def sticker(bot, update):
   print('%s/%d: [sticker <%s> <%s> < %s >]' % (fro, ci, st.file_id, set, emo))
   put(ci, emo)
   log_sticker(ci, fro, 0, emo, st.file_id, set)
-  bot.sendSticker(chat_id=ci, sticker=st.file_id)
+  #bot.sendSticker(chat_id=ci, sticker=st.file_id)
+  if (ci > 0) or (randint(0, 100) < 2):
+    sendreply(bot, ci, fro)
+
+def givesticker(bot, update):
+  ci = update.message.chat_id
+  fro = update.message.from_user.username
+  fid, emo, set = rand_sticker()
+  print('%s/%d: [giving random sticker: <%s> <%s>]' % (fro, ci, fid, set))
+  bot.sendSticker(chat_id=ci, sticker=fid)
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
@@ -145,5 +160,6 @@ dispatcher.add_handler(MessageHandler(Filters.text, msg))
 dispatcher.add_handler(MessageHandler(Filters.sticker, sticker))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('me', me))
+dispatcher.add_handler(CommandHandler('givesticker', givesticker))
 
 updater.start_polling()
