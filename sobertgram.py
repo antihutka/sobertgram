@@ -159,6 +159,7 @@ def givesticker(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
   fid, emo, set = rand_sticker()
+  fron = chatname(update.message.chat)
   print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
   bot.sendSticker(chat_id=ci, sticker=fid)
 
