@@ -130,6 +130,7 @@ def msg(bot, update):
 def start(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
+  fron = chatname(update.message.chat)
   print('%s/%d /start' % (fro, ci))
   sendreply(bot, ci, fro, fron)
 
