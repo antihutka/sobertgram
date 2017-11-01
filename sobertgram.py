@@ -8,12 +8,16 @@ import sys
 from time import time
 from random import randint
 import ConfigParser
+from Queue import Queue
+from threading import Thread
+import traceback
 
 Config = ConfigParser.ConfigParser()
 
 convos = {}
 times = {}
 known_stickers = set()
+replyqueue = Queue(maxsize=64)
 
 def getconv(convid):
   if convid not in convos:
@@ -50,7 +54,7 @@ def get(convid):
   try:
     (s, f) = getconv(convid)
     s.send('\n')
-    return f.readline().rstrip()
+    return lambda: f.readline().rstrip()
   except Exception as e:
     print str(e)
     del convos[convid]
@@ -104,12 +108,15 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 def sendreply(bot, ci, fro, fron):
   bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
-  sys.stdout.write('  => ')
-  sys.stdout.flush()
-  msg = get(ci)
-  print(msg)
-  log(ci, fro, fron, 1, msg)
-  bot.sendMessage(chat_id=ci, text=msg)
+  getmsg = get(ci)
+  def rf():
+    msg = getmsg()
+    print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8")))
+    log(ci, fro, fron, 1, msg)
+    bot.sendMessage(chat_id=ci, text=msg)
+  if replyqueue.full():
+    print('Warning: reply queue full')
+  replyqueue.put(rf)
 
 def getmessage(bot, ci, fro, fron, txt):
   print('%s/%s/%d: %s' % (fron, fro, ci, txt))
@@ -164,6 +171,28 @@ def givesticker(bot, update):
   print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
   bot.sendSticker(chat_id=ci, sticker=fid)
 
+def wthread(q, n):
+  while True:
+    task = q.get()
+    try:
+      task()
+    except Exception as e:
+      print('Exception in thread %s: %s' % (n, str(e)))
+      traceback.print_exc(file=sys.stdout)
+    q.task_done()
+
+def flushqueue(bot, update):
+  ci = update.message.chat_id
+  fro = update.message.from_user.username
+  print('%s/%d requested queue flush' % (fro, ci))
+  bot.sendMessage(chat_id=ci, text='<flush requested>')
+  replyqueue.join()
+  bot.sendMessage(chat_id=ci, text='<done>')
+
+replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
+replyworker.setDaemon(True)
+replyworker.start()
+
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
 Config.read(sys.argv[1])
@@ -176,5 +205,6 @@ dispatcher.add_handler(MessageHandler(Filters.sticker, sticker))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('me', me))
 dispatcher.add_handler(CommandHandler('givesticker', givesticker))
+dispatcher.add_handler(CommandHandler('flushqueue', flushqueue))
 
 updater.start_polling()
