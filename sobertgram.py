@@ -63,7 +63,7 @@ def chatname(chat):
     else:
       return chat.first_name + ' ' + chat.last_name
   except Exception as e:
-    print str(e)
+    print "can't get name: ", str(e)
     return '<err>'
 
 def get_dbcon():
