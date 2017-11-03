@@ -5,19 +5,22 @@ import socket
 import MySQLdb
 import re
 import sys
-from time import time
+from time import time, sleep
 from random import randint
 import ConfigParser
 from Queue import Queue
 from threading import Thread
 import traceback
+import os.path
 
 Config = ConfigParser.ConfigParser()
 
 convos = {}
 times = {}
 known_stickers = set()
+downloaded_files = set()
 replyqueue = Queue(maxsize=64)
+downloadqueue = Queue(maxsize=256)
 
 def getconv(convid):
   if convid not in convos:
@@ -46,7 +49,7 @@ def put(convid, text):
   text = re.sub('[\r\n]+', '\n',text).strip("\r\n")
   try:
     (s, f) = getconv(convid)
-    s.send((text + '\n').encode('utf-8'))
+    s.send((text + '\n').encode('utf-8', 'ignore'))
   except Exception as e:
     print str(e)
     del convos[convid]
@@ -119,6 +122,23 @@ def sendreply(bot, ci, fro, fron):
     print('Warning: reply queue full')
   replyqueue.put(rf)
 
+def download_file(bot, ftype, fid, fname):
+  if fid in downloaded_files:
+    return
+  def df():
+    filename = ftype + '/' + fname
+    if os.path.isfile(filename):
+      print('file ' + filename + ' already exists')
+      return
+    f = bot.getFile(file_id=fid)
+    print 'downloading file ' + filename + ' from ' + f.file_path
+    f.download(custom_path=filename)
+  if downloadqueue.full():
+    print('Warning: download queue full')
+  downloadqueue.put(df, True, 10)
+  downloaded_files.add(fid)
+  sleep(5)
+
 def getmessage(bot, ci, fro, fron, txt):
   print('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
@@ -163,6 +183,7 @@ def sticker(bot, update):
   #bot.sendSticker(chat_id=ci, sticker=st.file_id)
   if (ci > 0) or (randint(0, 100) < 2):
     sendreply(bot, ci, fro, fron)
+  download_file(bot, 'stickers', st.file_id, st.file_id + '.webp');
 
 def givesticker(bot, update):
   ci = update.message.chat_id
@@ -193,6 +214,9 @@ def flushqueue(bot, update):
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
 replyworker.start()
+downloadworker = Thread(target=wthread, args=(downloadqueue, 'download'))
+downloadworker.setDaemon(True)
+downloadworker.start()
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
