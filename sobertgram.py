@@ -101,6 +101,12 @@ def log_sticker(conv, username, fromname, sent, text, file_id, set_name):
   if file_id not in known_stickers:
     known_stickers.add(file_id)
 
+def log_file(conv, username, chatname, ftype, fsize, attr, file_id):
+  db, cur = get_dbcon()
+  cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id))
+  db.commit()
+  db.close()
+
 def rand_sticker():
   db, cur = get_dbcon()
   cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` ORDER BY RAND() LIMIT 1")
@@ -133,47 +139,44 @@ def download_file(bot, ftype, fid, fname):
     f = bot.getFile(file_id=fid)
     print 'downloading file ' + filename + ' from ' + f.file_path
     f.download(custom_path=filename)
+    sleep(15)
   if downloadqueue.full():
     print('Warning: download queue full')
-  downloadqueue.put(df, True, 10)
+  downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
-  sleep(5)
 
 def getmessage(bot, ci, fro, fron, txt):
   print('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
   log(ci, fro, fron, 0, txt)
 
-
-def msg(bot, update):
+def cifrofron(update):
   ci = update.message.chat_id
-  txt = update.message.text
   fro = update.message.from_user.username
   fron = chatname(update.message.chat)
+  return ci, fro, fron
+
+def msg(bot, update):
+  ci, fro, fron = cifrofron(update)
+  txt = update.message.text
   getmessage(bot, ci, fro, fron, txt)
   if (ci > 0) or (randint(0, 100) < 2) or (Config.get('Chat', 'Keyword') in txt.lower()):
     sendreply(bot, ci, fro, fron)
   convclean()
 
 def start(bot, update):
-  ci = update.message.chat_id
-  fro = update.message.from_user.username
-  fron = chatname(update.message.chat)
+  ci, fro, fron = cifrofron(update)
   print('%s/%d /start' % (fro, ci))
   sendreply(bot, ci, fro, fron)
 
 def me(bot, update):
-  ci = update.message.chat_id
+  ci, fro, fron = cifrofron(update)
   txt = update.message.text
-  fro = update.message.from_user.username
-  fron = chatname(update.message.chat)
   getmessage(bot, ci, fro, fron, txt)
   sendreply(bot, ci, fro, fron)
 
 def sticker(bot, update):
-  ci = update.message.chat_id
-  fro = update.message.from_user.username
-  fron = chatname(update.message.chat)
+  ci, fro, fron = cifrofron(update)
   st = update.message.sticker
   set = '<unnamed>' if st.set_name is None else st.set_name
   emo = st.emoji or ''
@@ -185,11 +188,64 @@ def sticker(bot, update):
     sendreply(bot, ci, fro, fron)
   download_file(bot, 'stickers', st.file_id, st.file_id + '.webp');
 
+def video(bot, update):
+  ci, fro, fron = cifrofron(update)
+  vid = update.message.video
+  fid = vid.file_id
+  attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
+  size = vid.file_size
+  print('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
+  download_file(bot, 'video', fid, fid + '.mp4')
+  log_file(ci, fro, fron, 'video', size, attr, fid)
+
+def document(bot, update):
+  ci, fro, fron = cifrofron(update)
+  doc = update.message.document
+  fid = doc.file_id
+  size = doc.file_size
+  attr = 'type=%s; name=%s' % (doc.mime_type, doc.file_name)
+  print('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
+  download_file(bot, 'document', fid, fid + ' ' + doc.file_name)
+  log_file(ci, fro, fron, 'document', size, attr, fid)
+
+def audio(bot, update):
+  ci, fro, fron = cifrofron(update)
+  aud = update.message.audio
+  fid = aud.file_id
+  size = aud.file_size
+  attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
+  print('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
+  download_file(bot, 'audio', fid, fid + ' ' + aud.performer + ' - ' + aud.title + '.ogg')
+  log_file(ci, fro, fron, 'audio', size, attr, fid)
+
+def photo(bot, update):
+  ci, fro, fron = cifrofron(update)
+  photos = update.message.photo
+  maxsize = 0
+  pho = None
+  for photo in photos:
+    if photo.file_size > maxsize and photo.file_size < 20 * 1024 * 1024:
+      maxsize = photo.file_size
+      pho = photo
+  fid = pho.file_id
+  attr = 'dim=%dx%d' % (pho.width, pho.height)
+  print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
+  download_file(bot, 'photo', fid, fid + '.jpg')
+  log_file(ci, fro, fron, 'photo', maxsize, attr, fid)
+
+def voice(bot, update):
+  ci, fro, fron = cifrofron(update)
+  voi = update.message.voice
+  fid = voi.file_id
+  size = voi.file_size
+  attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
+  print('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
+  download_file(bot, 'voice', fid, fid + '.opus')
+  log_file(ci, fro, fron, 'voice', size, attr, fid)
+
 def givesticker(bot, update):
-  ci = update.message.chat_id
-  fro = update.message.from_user.username
+  ci, fro, fron = cifrofron(update)
   fid, emo, set = rand_sticker()
-  fron = chatname(update.message.chat)
   print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
   bot.sendSticker(chat_id=ci, sticker=fid)
 
@@ -227,6 +283,11 @@ dispatcher = updater.dispatcher
 
 dispatcher.add_handler(MessageHandler(Filters.text, msg))
 dispatcher.add_handler(MessageHandler(Filters.sticker, sticker))
+dispatcher.add_handler(MessageHandler(Filters.video, video))
+dispatcher.add_handler(MessageHandler(Filters.document, document))
+dispatcher.add_handler(MessageHandler(Filters.audio, audio))
+dispatcher.add_handler(MessageHandler(Filters.photo, photo))
+dispatcher.add_handler(MessageHandler(Filters.voice, voice))
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('me', me))
 dispatcher.add_handler(CommandHandler('givesticker', givesticker))
