@@ -33,6 +33,7 @@ def convclean():
   for convid in times:
     if (convid in convos) and (times[convid] + Config.getfloat('Chat', 'Timeout') * 60 * 60 < now):
       print('Deleting conversation %d' % (convid,))
+      replyqueue.join()
       s = convos[convid][0]
       s.shutdown(socket.SHUT_RDWR)
       s.close()
