@@ -186,7 +186,7 @@ def sticker(bot, update):
   #bot.sendSticker(chat_id=ci, sticker=st.file_id)
   if (ci > 0) or (randint(0, 100) < 2):
     sendreply(bot, ci, fro, fron)
-  download_file(bot, 'stickers', st.file_id, st.file_id + '.webp');
+  download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
 def video(bot, update):
   ci, fro, fron = cifrofron(update)
