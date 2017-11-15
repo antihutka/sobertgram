@@ -21,6 +21,7 @@ known_stickers = set()
 downloaded_files = set()
 replyqueue = Queue(maxsize=64)
 downloadqueue = Queue(maxsize=256)
+options = {}
 
 def getconv(convid):
   if convid not in convos:
@@ -113,6 +114,37 @@ def rand_sticker():
   row = cur.fetchone()
   db.close()
   return row
+
+def option_set(convid, option, value):
+  db, cur = get_dbcon()
+  cur.execute("REPLACE INTO `options` (`convid`, `option`, `value`) VALUES (%s,%s, %s)", (convid, option, str(value)))
+  db.commit()
+  db.close()
+  options[(convid, option)] = value
+
+def option_get_raw(convid, option):
+  if (convid, option) in options:
+    return options[(convid, option)]
+  db, cur = get_dbcon()
+  cur.execute("SELECT `value` FROM `options` WHERE `convid` = %s AND `option` = %s", (convid, option))
+  row = cur.fetchone()
+  if row != None:
+    options[(convid, option)] = row[0]
+    return row[0]
+  else:
+    return None
+
+def option_get_float(convid, option, def_u, def_g):
+  try:
+    oraw = option_get_raw(convid, option)
+    if oraw != None:
+      return float(oraw)
+  except Exception as e:
+    print("Error getting option %s for conv %d: %s" % (option, convid, str(e)))
+  if convid > 0:
+    return def_u
+  else:
+    return def_g
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -270,6 +302,23 @@ def flushqueue(bot, update):
   replyqueue.join()
   bot.sendMessage(chat_id=ci, text='<done>')
 
+def cmd_get(bot, update):
+  ci, fro, fron = cifrofron(update)
+  txt = update.message.text.split()
+  opt = txt[1]
+  val = option_get_raw(ci, opt)
+  if val == None:
+    bot.sendMessage(chat_id=ci, text='<option %s not set>' % (opt,))
+  else:
+    bot.sendMessage(chat_id=ci, text='<option %s is set to %s>' % (opt, val))
+
+def cmd_set(bot, update):
+  ci, fro, fron = cifrofron(update)
+  txt = update.message.text.split()
+  opt = txt[1]
+  val = txt[2]
+  option_set(ci, opt, val)
+
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
 replyworker.start()
@@ -295,5 +344,7 @@ dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('me', me))
 dispatcher.add_handler(CommandHandler('givesticker', givesticker))
 dispatcher.add_handler(CommandHandler('flushqueue', flushqueue))
+dispatcher.add_handler(CommandHandler('get', cmd_get))
+dispatcher.add_handler(CommandHandler('set', cmd_set))
 
 updater.start_polling(timeout=20, read_latency=5)
