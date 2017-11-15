@@ -213,9 +213,12 @@ def audio(bot, update):
   aud = update.message.audio
   fid = aud.file_id
   size = aud.file_size
+  ext = '.ogg'
+  if aud.mime_type == 'audio/mp3':
+    ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   print('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'audio', fid, fid + ' ' + aud.performer + ' - ' + aud.title + '.ogg')
+  download_file(bot, 'audio', fid, fid + ' ' + aud.performer + ' - ' + aud.title + ext)
   log_file(ci, fro, fron, 'audio', size, attr, fid)
 
 def photo(bot, update):
@@ -293,4 +296,4 @@ dispatcher.add_handler(CommandHandler('me', me))
 dispatcher.add_handler(CommandHandler('givesticker', givesticker))
 dispatcher.add_handler(CommandHandler('flushqueue', flushqueue))
 
-updater.start_polling()
+updater.start_polling(timeout=20, read_latency=5)
