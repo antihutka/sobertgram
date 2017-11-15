@@ -326,6 +326,14 @@ def cmd_option_set(bot, update):
 def cmd_option_flush(bot, update):
   options.clear()
 
+helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
+Commands:
+/option_set talk_prob <value> - set my talking probability in this chat (0-1.0)
+"""
+
+def cmd_help(bot, update):
+  bot.sendMessage(chat_id=update.message.chat_id, text=helpstring)
+
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
 replyworker.start()
@@ -354,5 +362,6 @@ dispatcher.add_handler(CommandHandler('flushqueue', flushqueue))
 dispatcher.add_handler(CommandHandler('option_get', cmd_option_get))
 dispatcher.add_handler(CommandHandler('option_set', cmd_option_set))
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush))
+dispatcher.add_handler(CommandHandler('help', cmd_help))
 
 updater.start_polling(timeout=20, read_latency=5)
