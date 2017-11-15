@@ -87,6 +87,12 @@ def log(conv, username, fromname, sent, text):
   db.commit()
   db.close()
 
+def log_cmd(conv, username, fromname, cmd):
+  db, cur = get_dbcon()
+  cur.execute("INSERT INTO `commands` (`convid`, `from`, `chatname`, `command`) VALUES (%s, %s, %s, %s)", (conv, username, fromname, cmd))
+  db.commit()
+  db.close()
+
 def log_sticker(conv, username, fromname, sent, text, file_id, set_name):
   db, cur = get_dbcon()
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s)", (conv, username, fromname, sent, text))
@@ -306,7 +312,7 @@ def flushqueue(bot, update):
   bot.sendMessage(chat_id=ci, text='<done>')
 
 def cmd_option_get(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci = update.message.chat_id
   txt = update.message.text.split()
   opt = txt[1]
   val = option_get_raw(ci, opt)
@@ -316,15 +322,20 @@ def cmd_option_get(bot, update):
     bot.sendMessage(chat_id=ci, text='<option %s is set to %s>' % (opt, val))
 
 def cmd_option_set(bot, update):
-  ci, fro, fron = cifrofron(update)
   txt = update.message.text.split()
   opt = txt[1]
   val = txt[2]
   option_set(ci, opt, val)
-  bot.sendMessage(chat_id=ci, text='<option %s set to %s>' % (opt, val))
+  bot.sendMessage(chat_id=update.message.chat_id, text='<option %s set to %s>' % (opt, val))
 
 def cmd_option_flush(bot, update):
   options.clear()
+
+def logcmd(bot, update):
+  ci, fro, fron = cifrofron(update)
+  txt = update.message.text
+  print('[COMMAND] %s/%s: %s' % (fron, fro, txt))
+  log_cmd(ci, fro, fron, txt)
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
@@ -348,20 +359,25 @@ Config.read(sys.argv[1])
 updater = Updater(token=Config.get('Telegram','Token'))
 dispatcher = updater.dispatcher
 
-dispatcher.add_handler(MessageHandler(Filters.text, msg))
-dispatcher.add_handler(MessageHandler(Filters.sticker, sticker))
-dispatcher.add_handler(MessageHandler(Filters.video, video))
-dispatcher.add_handler(MessageHandler(Filters.document, document))
-dispatcher.add_handler(MessageHandler(Filters.audio, audio))
-dispatcher.add_handler(MessageHandler(Filters.photo, photo))
-dispatcher.add_handler(MessageHandler(Filters.voice, voice))
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(CommandHandler('me', me))
-dispatcher.add_handler(CommandHandler('givesticker', givesticker))
-dispatcher.add_handler(CommandHandler('flushqueue', flushqueue))
-dispatcher.add_handler(CommandHandler('option_get', cmd_option_get))
-dispatcher.add_handler(CommandHandler('option_set', cmd_option_set))
-dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush))
-dispatcher.add_handler(CommandHandler('help', cmd_help))
+dispatcher.add_handler(CommandHandler('me', me), 0)
+dispatcher.add_handler(MessageHandler(Filters.command, logcmd), 0)
+
+dispatcher.add_handler(MessageHandler(Filters.text, msg), 1)
+
+dispatcher.add_handler(MessageHandler(Filters.sticker, sticker), 2)
+dispatcher.add_handler(MessageHandler(Filters.video, video), 2)
+dispatcher.add_handler(MessageHandler(Filters.document, document), 2)
+dispatcher.add_handler(MessageHandler(Filters.audio, audio), 2)
+dispatcher.add_handler(MessageHandler(Filters.photo, photo), 2)
+dispatcher.add_handler(MessageHandler(Filters.voice, voice), 2)
+
+dispatcher.add_handler(CommandHandler('start', start), 3)
+dispatcher.add_handler(CommandHandler('givesticker', givesticker), 3)
+dispatcher.add_handler(CommandHandler('flushqueue', flushqueue), 3)
+dispatcher.add_handler(CommandHandler('option_get', cmd_option_get), 3)
+dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
+dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
+dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
+
 
 updater.start_polling(timeout=20, read_latency=5)
