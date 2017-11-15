@@ -6,7 +6,7 @@ import MySQLdb
 import re
 import sys
 from time import time, sleep
-from random import randint
+from random import uniform
 import ConfigParser
 from Queue import Queue
 from threading import Thread
@@ -191,8 +191,10 @@ def cifrofron(update):
 def msg(bot, update):
   ci, fro, fron = cifrofron(update)
   txt = update.message.text
+  rp = option_get_float(ci, 'reply_prob', 1, 0.02)
   getmessage(bot, ci, fro, fron, txt)
-  if (ci > 0) or (randint(0, 100) < 2) or (Config.get('Chat', 'Keyword') in txt.lower()):
+  if (uniform(0, 1) <
+   rp) or (Config.get('Chat', 'Keyword') in txt.lower()):
     sendreply(bot, ci, fro, fron)
   convclean()
 
@@ -212,11 +214,12 @@ def sticker(bot, update):
   st = update.message.sticker
   set = '<unnamed>' if st.set_name is None else st.set_name
   emo = st.emoji or ''
+  rp = option_get_float(ci, 'reply_prob', 1, 0.02)
   print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
   log_sticker(ci, fro, fron, 0, emo, st.file_id, set)
   #bot.sendSticker(chat_id=ci, sticker=st.file_id)
-  if (ci > 0) or (randint(0, 100) < 2):
+  if (uniform(0, 1) < rp):
     sendreply(bot, ci, fro, fron)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
@@ -302,7 +305,7 @@ def flushqueue(bot, update):
   replyqueue.join()
   bot.sendMessage(chat_id=ci, text='<done>')
 
-def cmd_get(bot, update):
+def cmd_option_get(bot, update):
   ci, fro, fron = cifrofron(update)
   txt = update.message.text.split()
   opt = txt[1]
@@ -312,12 +315,16 @@ def cmd_get(bot, update):
   else:
     bot.sendMessage(chat_id=ci, text='<option %s is set to %s>' % (opt, val))
 
-def cmd_set(bot, update):
+def cmd_option_set(bot, update):
   ci, fro, fron = cifrofron(update)
   txt = update.message.text.split()
   opt = txt[1]
   val = txt[2]
   option_set(ci, opt, val)
+  bot.sendMessage(chat_id=ci, text='<option %s set to %s>' % (opt, val))
+
+def cmd_option_flush(bot, update):
+  options.clear()
 
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
@@ -344,7 +351,8 @@ dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(CommandHandler('me', me))
 dispatcher.add_handler(CommandHandler('givesticker', givesticker))
 dispatcher.add_handler(CommandHandler('flushqueue', flushqueue))
-dispatcher.add_handler(CommandHandler('get', cmd_get))
-dispatcher.add_handler(CommandHandler('set', cmd_set))
+dispatcher.add_handler(CommandHandler('option_get', cmd_option_get))
+dispatcher.add_handler(CommandHandler('option_set', cmd_option_set))
+dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush))
 
 updater.start_polling(timeout=20, read_latency=5)
