@@ -65,6 +65,11 @@ def get(convid):
     del convos[convid]
     return ''
 
+def user_name(user):
+  if user.username:
+    return user.username
+  return '(' + user.first_name + ')'
+
 def chatname(chat):
   try:
     if chat.title:
@@ -111,6 +116,15 @@ def log_sticker(conv, username, fromname, sent, text, file_id, set_name):
 def log_file(conv, username, chatname, ftype, fsize, attr, file_id):
   db, cur = get_dbcon()
   cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id))
+  db.commit()
+  db.close()
+
+def log_status(conv, username, chatname, updates):
+  if not updates:
+    return
+  db, cur = get_dbcon()
+  for u in updates:
+    cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`) VALUES (%s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1]))
   db.commit()
   db.close()
 
@@ -194,13 +208,17 @@ def cifrofron(update):
   fron = chatname(update.message.chat)
   return ci, fro, fron
 
+def should_reply(ci, txt=None):
+  if txt and (Config.get('Chat', 'Keyword') in txt.lower()):
+    return True
+  rp = option_get_float(ci, 'reply_prob', 1, 0.02)
+  return (uniform(0, 1) < rp)
+
 def msg(bot, update):
   ci, fro, fron = cifrofron(update)
   txt = update.message.text
-  rp = option_get_float(ci, 'reply_prob', 1, 0.02)
   getmessage(bot, ci, fro, fron, txt)
-  if (uniform(0, 1) <
-   rp) or (Config.get('Chat', 'Keyword') in txt.lower()):
+  if should_reply(ci, txt):
     sendreply(bot, ci, fro, fron)
   convclean()
 
@@ -220,12 +238,11 @@ def sticker(bot, update):
   st = update.message.sticker
   set = '<unnamed>' if st.set_name is None else st.set_name
   emo = st.emoji or ''
-  rp = option_get_float(ci, 'reply_prob', 1, 0.02)
   print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
   log_sticker(ci, fro, fron, 0, emo, st.file_id, set)
   #bot.sendSticker(chat_id=ci, sticker=st.file_id)
-  if (uniform(0, 1) < rp):
+  if should_reply(ci):
     sendreply(bot, ci, fro, fron)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
@@ -264,6 +281,7 @@ def audio(bot, update):
 
 def photo(bot, update):
   ci, fro, fron = cifrofron(update)
+  txt = update.message.caption
   photos = update.message.photo
   maxsize = 0
   pho = None
@@ -273,6 +291,11 @@ def photo(bot, update):
       pho = photo
   fid = pho.file_id
   attr = 'dim=%dx%d' % (pho.width, pho.height)
+  if txt:
+    attr += '; caption=' + txt
+    getmessage(bot, ci, fro, fron, txt)
+    if should_reply(ci, txt):
+      sendreply(bot, ci, fro, fron)
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   download_file(bot, 'photo', fid, fid + '.jpg')
   log_file(ci, fro, fron, 'photo', maxsize, attr, fid)
@@ -286,6 +309,28 @@ def voice(bot, update):
   print('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'voice', fid, fid + '.opus')
   log_file(ci, fro, fron, 'voice', size, attr, fid)
+
+def status(bot, update):
+  msg = update.message
+  ci, fro, fron = cifrofron(update)
+  upd = []
+  if msg.new_chat_members:
+    for mmb in msg.new_chat_members:
+      upd.append(('new_member', str(mmb.id) + ' ' + user_name(mmb)))
+  if msg.left_chat_member:
+    mmb = msg.left_chat_member
+    upd.append(('left_member', str(mmb.id) + ' ' + user_name(mmb)))
+  if msg.new_chat_title:
+    upd.append(('new_title', msg.new_chat_title))
+  if msg.group_chat_created:
+    upd.append(('group_created', ''))
+  if msg.supergroup_chat_created:
+    upd.append(('supergroup_created', ''))
+  if msg.migrate_from_chat_id:
+    upd.append(('migrate_from_chat_id', str(msg.migrate_from_chat_id)))
+  for u in upd:
+    print('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
+  log_status(ci, fro, fron, upd)
 
 def givesticker(bot, update):
   ci, fro, fron = cifrofron(update)
@@ -322,11 +367,12 @@ def cmd_option_get(bot, update):
     bot.sendMessage(chat_id=ci, text='<option %s is set to %s>' % (opt, val))
 
 def cmd_option_set(bot, update):
+  ci = update.message.chat_id
   txt = update.message.text.split()
   opt = txt[1]
   val = txt[2]
   option_set(ci, opt, val)
-  bot.sendMessage(chat_id=update.message.chat_id, text='<option %s set to %s>' % (opt, val))
+  bot.sendMessage(chat_id=ci, text='<option %s set to %s>' % (opt, val))
 
 def cmd_option_flush(bot, update):
   options.clear()
@@ -370,6 +416,7 @@ dispatcher.add_handler(MessageHandler(Filters.document, document), 2)
 dispatcher.add_handler(MessageHandler(Filters.audio, audio), 2)
 dispatcher.add_handler(MessageHandler(Filters.photo, photo), 2)
 dispatcher.add_handler(MessageHandler(Filters.voice, voice), 2)
+dispatcher.add_handler(MessageHandler(Filters.status_update, status), 2)
 
 dispatcher.add_handler(CommandHandler('start', start), 3)
 dispatcher.add_handler(CommandHandler('givesticker', givesticker), 3)
