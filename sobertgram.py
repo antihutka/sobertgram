@@ -22,6 +22,7 @@ downloaded_files = set()
 replyqueue = Queue(maxsize=64)
 downloadqueue = Queue(maxsize=256)
 options = {}
+sticker_emojis = None
 
 def getconv(convid):
   if convid not in convos:
@@ -83,6 +84,14 @@ def chatname(chat):
     print "can't get name: ", str(e)
     return '<err>'
 
+def lookup_sticker_emoji(emoji):
+  if emoji in sticker_emojis:
+    return emoji
+  emoji = emoji.strip(u'\ufe00\ufe01\ufe02\ufe03\ufe04\ufe05\ufe06\ufe07\ufe09\ufe0a\ufe0b\ufe0c\ufe0d\ufe0e\ufe0f')
+  if emoji in sticker_emojis:
+    return emoji
+  return None
+
 def get_dbcon():
   db = MySQLdb.connect(host=Config.get('Database', 'Host'), user=Config.get('Database', 'User'), passwd=Config.get('Database', 'Password'), db=Config.get('Database', 'Database'), charset='utf8')
   cur = db.cursor()
@@ -115,6 +124,7 @@ def log_sticker(conv, username, fromname, sent, text, file_id, set_name):
   db.close()
   if file_id not in known_stickers:
     known_stickers.add(file_id)
+    sticker_emojis.add(text)
 
 def log_file(conv, username, chatname, ftype, fsize, attr, file_id):
   db, cur = get_dbcon()
@@ -131,12 +141,26 @@ def log_status(conv, username, chatname, updates):
   db.commit()
   db.close()
 
-def rand_sticker():
+def rand_sticker(emoji = None):
   db, cur = get_dbcon()
-  cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` ORDER BY RAND() LIMIT 1")
+  if emoji:
+    emoji = lookup_sticker_emoji(emoji)
+    if not emoji:
+      return None
+    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `emoji` = %s ORDER BY RAND() LIMIT 1", (emoji,))
+  else:
+    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` ORDER BY RAND() LIMIT 1")
   row = cur.fetchone()
   db.close()
   return row
+
+def get_sticker_emojis():
+  db, cur = get_dbcon()
+  cur.execute("SELECT DISTINCT `emoji` from `stickers`")
+  rows = cur.fetchall()
+  db.close()
+  return [unicode(x[0], 'utf8') for x in rows]
+
 
 def option_set(convid, option, value):
   db, cur = get_dbcon()
@@ -168,6 +192,7 @@ def option_get_float(convid, option, def_u, def_g):
     return def_u
   else:
     return def_g
+
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
@@ -337,9 +362,18 @@ def status(bot, update):
 
 def givesticker(bot, update):
   ci, fro, fron = cifrofron(update)
-  fid, emo, set = rand_sticker()
-  print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
-  bot.sendSticker(chat_id=ci, sticker=fid)
+  foremo = None
+  cmd = update.message.text
+  m = re.match('^/[^ ]+ (.+)', cmd)
+  if m:
+    foremo = unicode(m.group(1))
+  rs = rand_sticker(foremo)
+  if not rs:
+    bot.sendMessage(chat_id=ci, text='<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
+  else:
+    fid, emo, set = rs
+    print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
+    bot.sendSticker(chat_id=ci, sticker=fid)
 
 def wthread(q, n):
   while True:
@@ -429,5 +463,7 @@ dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 
+sticker_emojis = set(get_sticker_emojis())
+print("%d sticker emojis loaded" % len(sticker_emojis))
 
 updater.start_polling(timeout=30, read_latency=10)
