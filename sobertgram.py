@@ -203,6 +203,13 @@ def sendreply(bot, ci, fro, fron):
     msg = getmsg()
     print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8")))
     log(ci, fro, fron, 1, msg)
+    sp = option_get_float(ci, 'sticker_prob', 0.75, 0)
+    if uniform(0, 1) < sp:
+      rs = rand_sticker(unicode(msg, 'utf-8'))
+      if rs:
+        print('sending as sticker %s/%s' % (rs[2], rs[0]))
+        bot.sendSticker(chat_id=ci, sticker=rs[0])
+        return
     bot.sendMessage(chat_id=ci, text=msg)
   if replyqueue.full():
     print('Warning: reply queue full')
