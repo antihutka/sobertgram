@@ -75,7 +75,10 @@ def chatname(chat):
     if chat.title:
       return chat.title
     else:
-      return chat.first_name + ' ' + chat.last_name
+      n = chat.first_name
+      if chat.last_name:
+        n = n + ' ' + chat.last_name
+      return n
   except Exception as e:
     print "can't get name: ", str(e)
     return '<err>'
@@ -190,7 +193,7 @@ def download_file(bot, ftype, fid, fname):
       return
     f = bot.getFile(file_id=fid)
     print 'downloading file ' + filename + ' from ' + f.file_path
-    f.download(custom_path=filename)
+    f.download(custom_path=filename, timeout=120)
     sleep(15)
   if downloadqueue.full():
     print('Warning: download queue full')
@@ -204,7 +207,7 @@ def getmessage(bot, ci, fro, fron, txt):
 
 def cifrofron(update):
   ci = update.message.chat_id
-  fro = update.message.from_user.username
+  fro = user_name(update.message.from_user)
   fron = chatname(update.message.chat)
   return ci, fro, fron
 
@@ -276,7 +279,7 @@ def audio(bot, update):
     ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   print('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'audio', fid, fid + ' ' + aud.performer + ' - ' + aud.title + ext)
+  download_file(bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
   log_file(ci, fro, fron, 'audio', size, attr, fid)
 
 def photo(bot, update):
@@ -427,4 +430,4 @@ dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 
 
-updater.start_polling(timeout=20, read_latency=5)
+updater.start_polling(timeout=30, read_latency=10)
