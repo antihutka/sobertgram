@@ -243,7 +243,11 @@ def cifrofron(update):
   fron = chatname(update.message.chat)
   return ci, fro, fron
 
-def should_reply(ci, txt=None):
+def should_reply(bot, msg, ci, txt = None):
+  if msg and msg.reply_to_message and msg.reply_to_message.from_user.id == bot.id:
+    return True
+  if not txt:
+    txt = msg.text
   if txt and (Config.get('Chat', 'Keyword') in txt.lower()):
     return True
   rp = option_get_float(ci, 'reply_prob', 1, 0.02)
@@ -253,7 +257,7 @@ def msg(bot, update):
   ci, fro, fron = cifrofron(update)
   txt = update.message.text
   getmessage(bot, ci, fro, fron, txt)
-  if should_reply(ci, txt):
+  if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, fron)
   convclean()
 
@@ -277,7 +281,7 @@ def sticker(bot, update):
   put(ci, emo)
   log_sticker(ci, fro, fron, 0, emo, st.file_id, set)
   #bot.sendSticker(chat_id=ci, sticker=st.file_id)
-  if should_reply(ci):
+  if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, fron)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
@@ -329,7 +333,7 @@ def photo(bot, update):
   if txt:
     attr += '; caption=' + txt
     getmessage(bot, ci, fro, fron, txt)
-    if should_reply(ci, txt):
+    if should_reply(bot, update.message, ci, txt):
       sendreply(bot, ci, fro, fron)
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   download_file(bot, 'photo', fid, fid + '.jpg')
