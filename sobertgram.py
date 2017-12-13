@@ -434,6 +434,7 @@ def logcmd(bot, update):
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
 /option_set talk_prob <value> - set my talking probability in this chat (0-1.0)
+/option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. 0 by default in groups
 """
 
 def cmd_help(bot, update):
