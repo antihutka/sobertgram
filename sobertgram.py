@@ -407,6 +407,9 @@ def flushqueue(bot, update):
 def cmd_option_get(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
+  if (len(txt) != 2):
+    bot.sendMessage(chat_id=ci, text='< invalid syntax >')
+    return
   opt = txt[1]
   val = option_get_raw(ci, opt)
   if val == None:
@@ -417,6 +420,9 @@ def cmd_option_get(bot, update):
 def cmd_option_set(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
+  if (len(txt) != 3):
+    bot.sendMessage(chat_id=ci, text='< invalid syntax, use /option_set <option> <value> >')
+    return
   opt = txt[1]
   val = txt[2]
   option_set(ci, opt, val)
@@ -424,6 +430,7 @@ def cmd_option_set(bot, update):
 
 def cmd_option_flush(bot, update):
   options.clear()
+  bot.sendMessage(chat_id=update.message.chat_id, text='<done>')
 
 def logcmd(bot, update):
   ci, fro, fron = cifrofron(update)
