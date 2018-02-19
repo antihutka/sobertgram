@@ -12,6 +12,7 @@ from Queue import Queue
 from threading import Thread
 import traceback
 import os.path
+import unicodedata
 
 Config = ConfigParser.ConfigParser()
 
@@ -215,7 +216,15 @@ def sendreply(bot, ci, fro, fron):
     print('Warning: reply queue full')
   replyqueue.put(rf)
 
+def fix_name(value):
+  value = unicode(re.sub('[/<>:"\\\\|?*]', '_', value))
+  return value
+
 def download_file(bot, ftype, fid, fname):
+#  print('input name:  %s' % fname)
+  fname = fix_name(fname)
+#  print('output name: %s' % fname)
+
   if fid in downloaded_files:
     return
   def df():
@@ -275,7 +284,7 @@ def me(bot, update):
 def sticker(bot, update):
   ci, fro, fron = cifrofron(update)
   st = update.message.sticker
-  set = '<unnamed>' if st.set_name is None else st.set_name
+  set = '(unnamed)' if st.set_name is None else st.set_name
   emo = st.emoji or ''
   print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
@@ -300,6 +309,9 @@ def document(bot, update):
   doc = update.message.document
   fid = doc.file_id
   size = doc.file_size
+  name = doc.file_name
+  if not name:
+    name = '_unnamed_'
   attr = 'type=%s; name=%s' % (doc.mime_type, doc.file_name)
   print('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'document', fid, fid + ' ' + doc.file_name)
@@ -377,7 +389,7 @@ def givesticker(bot, update):
   cmd = update.message.text
   m = re.match('^/[^ ]+ (.+)', cmd)
   if m:
-    foremo = unicode(m.group(1))
+    foremo = unicode(m.group(1)).strip()
   rs = rand_sticker(foremo)
   if not rs:
     bot.sendMessage(chat_id=ci, text='<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
@@ -485,4 +497,4 @@ dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 sticker_emojis = set(get_sticker_emojis())
 print("%d sticker emojis loaded" % len(sticker_emojis))
 
-updater.start_polling(timeout=30, read_latency=10)
+updater.start_polling(timeout=60, read_latency=30)
