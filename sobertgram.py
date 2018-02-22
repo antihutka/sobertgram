@@ -429,6 +429,15 @@ def cmd_option_get(bot, update):
   else:
     bot.sendMessage(chat_id=ci, text='<option %s is set to %s>' % (opt, val))
 
+def option_valid(o, v):
+  if o == 'sticker_prob' or o == 'reply_prob':
+    if re.match(r'^([0-9]+|[0-9]*\.[0-9]+)$', v):
+      return True
+    else:
+      return False
+  else:
+    return False
+
 def cmd_option_set(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
@@ -437,8 +446,11 @@ def cmd_option_set(bot, update):
     return
   opt = txt[1]
   val = txt[2]
-  option_set(ci, opt, val)
-  bot.sendMessage(chat_id=ci, text='<option %s set to %s>' % (opt, val))
+  if option_valid(opt, val):
+    option_set(ci, opt, val)
+    bot.sendMessage(chat_id=ci, text='<option %s set to %s>' % (opt, val))
+  else:
+    bot.sendMessage(chat_id=ci, text='<invalid option or value>')
 
 def cmd_option_flush(bot, update):
   options.clear()
