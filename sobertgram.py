@@ -263,6 +263,9 @@ def should_reply(bot, msg, ci, txt = None):
   return (uniform(0, 1) < rp)
 
 def msg(bot, update):
+  if not update.message:
+    print('No message, channel?')
+    return
   ci, fro, fron = cifrofron(update)
   txt = update.message.text
   getmessage(bot, ci, fro, fron, txt)
@@ -471,6 +474,16 @@ Commands:
 def cmd_help(bot, update):
   bot.sendMessage(chat_id=update.message.chat_id, text=helpstring)
 
+def cmd_pq(bot, update):
+  ci, fro, fron = cifrofron(update)
+  msg = update.message
+  if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != bot.id):
+    bot.sendMessage(chat_id=ci, text='<send that as a reply to my message!>')
+    return
+  if (not msg.reply_to_message.text):
+    bot.sendMessage(chat_id=ci, text='<only regular text messages are supported>')
+  bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=msg.reply_to_message.message_id)
+
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
 replyworker.start()
@@ -482,7 +495,7 @@ if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
 Config.read(sys.argv[1])
 
-updater = Updater(token=Config.get('Telegram','Token'))
+updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15})
 dispatcher = updater.dispatcher
 
 dispatcher.add_handler(CommandHandler('me', me), 0)
@@ -505,6 +518,7 @@ dispatcher.add_handler(CommandHandler('option_get', cmd_option_get), 3)
 dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
+dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
 
 sticker_emojis = set(get_sticker_emojis())
 print("%d sticker emojis loaded" % len(sticker_emojis))
