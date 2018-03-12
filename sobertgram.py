@@ -24,6 +24,8 @@ replyqueue = Queue(maxsize=64)
 downloadqueue = Queue(maxsize=256)
 options = {}
 sticker_emojis = None
+pqed_messages = set()
+command_replies = set()
 
 def getconv(convid):
   if convid not in convos:
@@ -315,9 +317,9 @@ def document(bot, update):
   name = doc.file_name
   if not name:
     name = '_unnamed_'
-  attr = 'type=%s; name=%s' % (doc.mime_type, doc.file_name)
+  attr = 'type=%s; name=%s' % (doc.mime_type, name)
   print('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'document', fid, fid + ' ' + doc.file_name)
+  download_file(bot, 'document', fid, fid + ' ' + name)
   log_file(ci, fro, fron, 'document', size, attr, fid)
 
 def audio(bot, update):
@@ -386,6 +388,10 @@ def status(bot, update):
     print('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
   log_status(ci, fro, fron, upd)
 
+def cmdreply(bot, ci, text):
+  msg = bot.sendMessage(chat_id=ci, text=text)
+  command_replies.add(msg.message_id)
+
 def givesticker(bot, update):
   ci, fro, fron = cifrofron(update)
   foremo = None
@@ -395,7 +401,7 @@ def givesticker(bot, update):
     foremo = unicode(m.group(1)).strip()
   rs = rand_sticker(foremo)
   if not rs:
-    bot.sendMessage(chat_id=ci, text='<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
+    cmdreply(bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
   else:
     fid, emo, set = rs
     print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
@@ -415,22 +421,22 @@ def flushqueue(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
   print('%s/%d requested queue flush' % (fro, ci))
-  bot.sendMessage(chat_id=ci, text='<flush requested>')
+  cmdreply(bot, ci, '<flush requested>')
   replyqueue.join()
-  bot.sendMessage(chat_id=ci, text='<done>')
+  cmdreply(bot, ci, '<done>')
 
 def cmd_option_get(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 2):
-    bot.sendMessage(chat_id=ci, text='< invalid syntax >')
+    cmdreply(bot, ci, '< invalid syntax >')
     return
   opt = txt[1]
   val = option_get_raw(ci, opt)
   if val == None:
-    bot.sendMessage(chat_id=ci, text='<option %s not set>' % (opt,))
+    cmdreply(bot, ci, '<option %s not set>' % (opt,))
   else:
-    bot.sendMessage(chat_id=ci, text='<option %s is set to %s>' % (opt, val))
+    cmdreply(bot, ci, '<option %s is set to %s>' % (opt, val))
 
 def option_valid(o, v):
   if o == 'sticker_prob' or o == 'reply_prob':
@@ -445,19 +451,19 @@ def cmd_option_set(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
-    bot.sendMessage(chat_id=ci, text='< invalid syntax, use /option_set <option> <value> >')
+    cmdreply(bot, ci, '< invalid syntax, use /option_set <option> <value> >')
     return
   opt = txt[1]
   val = txt[2]
   if option_valid(opt, val):
     option_set(ci, opt, val)
-    bot.sendMessage(chat_id=ci, text='<option %s set to %s>' % (opt, val))
+    cmdreply(bot, ci, '<option %s set to %s>' % (opt, val))
   else:
-    bot.sendMessage(chat_id=ci, text='<invalid option or value>')
+    cmdreply(bot, ci, '<invalid option or value>')
 
 def cmd_option_flush(bot, update):
   options.clear()
-  bot.sendMessage(chat_id=update.message.chat_id, text='<done>')
+  cmdreply(bot, update.message.chat_id, '<done>')
 
 def logcmd(bot, update):
   ci, fro, fron = cifrofron(update)
@@ -472,17 +478,29 @@ Commands:
 """
 
 def cmd_help(bot, update):
-  bot.sendMessage(chat_id=update.message.chat_id, text=helpstring)
+  cmdreply(bot, update.message.chat_id, helpstring)
 
 def cmd_pq(bot, update):
   ci, fro, fron = cifrofron(update)
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != bot.id):
-    bot.sendMessage(chat_id=ci, text='<send that as a reply to my message!>')
+    cmdreply(bot, ci, '<send that as a reply to my message!>')
     return
-  if (not msg.reply_to_message.text):
-    bot.sendMessage(chat_id=ci, text='<only regular text messages are supported>')
-  bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=msg.reply_to_message.message_id)
+
+  repl = msg.reply_to_message
+  replid = repl.message_id
+
+  if (repl.sticker or not repl.text):
+    cmdreply(bot, ci, '<only regular text messages are supported>')
+    return
+  if replid in pqed_messages:
+    cmdreply(bot, ci, '<message already forwarded>')
+    return
+  if replid in command_replies:
+    cmdreply(bot, ci, '<that is a silly thing to forward!>')
+    return
+  bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
+  pqed_messages.add(replid)
 
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
