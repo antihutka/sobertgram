@@ -316,7 +316,7 @@ def document(bot, update):
   size = doc.file_size
   name = doc.file_name
   if not name:
-    name = '_unnamed_'
+    name = '_unnamed_.mp4'
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
   print('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'document', fid, fid + ' ' + name)
@@ -502,12 +502,19 @@ def cmd_pq(bot, update):
   bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
   pqed_messages.add(replid)
 
+def thr_console():
+  for line in sys.stdin:
+    pass
+
 replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
 replyworker.setDaemon(True)
 replyworker.start()
 downloadworker = Thread(target=wthread, args=(downloadqueue, 'download'))
 downloadworker.setDaemon(True)
 downloadworker.start()
+consoleworker = Thread(target=thr_console, args=())
+consoleworker.setDaemon(True)
+consoleworker.start()
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
