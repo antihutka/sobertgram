@@ -150,16 +150,16 @@ def rand_sticker(emoji = None):
     emoji = lookup_sticker_emoji(emoji)
     if not emoji:
       return None
-    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `emoji` = %s ORDER BY RAND() LIMIT 1", (emoji,))
+    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `freqmod` > 0 AND `emoji` = %s ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1", (emoji,))
   else:
-    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` ORDER BY RAND() LIMIT 1")
+    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `freqmod` > 0 ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1")
   row = cur.fetchone()
   db.close()
   return row
 
 def get_sticker_emojis():
   db, cur = get_dbcon()
-  cur.execute("SELECT DISTINCT `emoji` from `stickers`")
+  cur.execute("SELECT DISTINCT `emoji` from `stickers` WHERE `freqmod` > 0")
   rows = cur.fetchall()
   db.close()
   return [unicode(x[0], 'utf8') for x in rows]
