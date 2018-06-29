@@ -20,12 +20,21 @@ convos = {}
 times = {}
 known_stickers = set()
 downloaded_files = set()
-replyqueue = Queue(maxsize=64)
+# replyqueue = Queue(maxsize=64)
+replyqueues = {}
 downloadqueue = Queue(maxsize=256)
 options = {}
 sticker_emojis = None
 pqed_messages = set()
 command_replies = set()
+
+def getreplyqueue(convid):
+  if convid not in replyqueues:
+    replyqueues[convid] = Queue(maxsize=1024)
+    replyworker = Thread(target=wthread, args=(replyqueues[convid], 'reply_' + str(convid)))
+    replyworker.setDaemon(True)
+    replyworker.start()
+  return replyqueues[convid]
 
 def getconv(convid):
   if convid not in convos:
@@ -41,7 +50,8 @@ def convclean():
   for convid in times:
     if (convid in convos) and (times[convid] + Config.getfloat('Chat', 'Timeout') * 60 * 60 < now):
       print('Deleting conversation %d' % (convid,))
-      replyqueue.join()
+      getreplyqueue(convid).join()
+      # TODO remove the queue
       s = convos[convid][0]
       s.shutdown(socket.SHUT_RDWR)
       s.close()
@@ -214,9 +224,9 @@ def sendreply(bot, ci, fro, fron):
         bot.sendSticker(chat_id=ci, sticker=rs[0])
         return
     bot.sendMessage(chat_id=ci, text=msg)
-  if replyqueue.full():
+  if getreplyqueue(ci).full():
     print('Warning: reply queue full')
-  replyqueue.put(rf)
+  getreplyqueue(ci).put(rf)
 
 def fix_name(value):
   value = unicode(re.sub('[/<>:"\\\\|?*]', '_', value))
@@ -422,7 +432,10 @@ def flushqueue(bot, update):
   fro = update.message.from_user.username
   print('%s/%d requested queue flush' % (fro, ci))
   cmdreply(bot, ci, '<flush requested>')
-  replyqueue.join()
+  for qci, rq in replyqueues.items():
+    print('flushing queue %d' % (qci,))
+    rq.join()
+  #replyqueue.join()
   cmdreply(bot, ci, '<done>')
 
 def cmd_option_get(bot, update):
@@ -506,9 +519,9 @@ def thr_console():
   for line in sys.stdin:
     pass
 
-replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
-replyworker.setDaemon(True)
-replyworker.start()
+#replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
+#replyworker.setDaemon(True)
+#replyworker.start()
 downloadworker = Thread(target=wthread, args=(downloadqueue, 'download'))
 downloadworker.setDaemon(True)
 downloadworker.start()
