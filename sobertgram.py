@@ -218,7 +218,7 @@ def sendreply(bot, ci, fro, fron):
     msg = getmsg()
     print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8")))
     log(ci, fro, fron, 1, msg)
-    sp = option_get_float(ci, 'sticker_prob', 0.75, 0)
+    sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if uniform(0, 1) < sp:
       rs = rand_sticker(unicode(msg, 'utf-8'))
       if rs:
@@ -482,8 +482,9 @@ def logcmd(bot, update):
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
-/option_set reply_prob <value> - set my reply probability in this chat when my name is not mentioned (0-1.0)
-/option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. 0 by default in groups
+/option_set reply_prob <value> - set my reply probability in this chat when my name is not mentioned. Defaults to 0.02 in groups. (0-1.0)
+/option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. Defaults to 0 in groups.
+/pq - forward message to @StuffSobertSays
 """
 
 def cmd_help(bot, update):
