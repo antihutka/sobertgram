@@ -20,7 +20,6 @@ convos = {}
 times = {}
 known_stickers = set()
 downloaded_files = set()
-# replyqueue = Queue(maxsize=64)
 replyqueues = {}
 downloadqueue = Queue(maxsize=256)
 options = {}
@@ -30,7 +29,7 @@ command_replies = set()
 
 def getreplyqueue(convid):
   if convid not in replyqueues:
-    replyqueues[convid] = Queue(maxsize=1024)
+    replyqueues[convid] = Queue(maxsize=16)
     replyworker = Thread(target=wthread, args=(replyqueues[convid], 'reply_' + str(convid)))
     replyworker.setDaemon(True)
     replyworker.start()
@@ -210,6 +209,9 @@ def option_get_float(convid, option, def_u, def_g):
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 def sendreply(bot, ci, fro, fron):
+  if getreplyqueue(ci).full():
+    print('Warning: reply queue full, dropping reply')
+    return
   bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
   getmsg = get(ci)
   def rf():
@@ -224,8 +226,6 @@ def sendreply(bot, ci, fro, fron):
         bot.sendSticker(chat_id=ci, sticker=rs[0])
         return
     bot.sendMessage(chat_id=ci, text=msg)
-  if getreplyqueue(ci).full():
-    print('Warning: reply queue full')
   getreplyqueue(ci).put(rf)
 
 def fix_name(value):
@@ -233,9 +233,7 @@ def fix_name(value):
   return value
 
 def download_file(bot, ftype, fid, fname):
-#  print('input name:  %s' % fname)
   fname = fix_name(fname)
-#  print('output name: %s' % fname)
 
   if fid in downloaded_files:
     return
@@ -304,7 +302,6 @@ def sticker(bot, update):
   print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
   log_sticker(ci, fro, fron, 0, emo, st.file_id, set)
-  #bot.sendSticker(chat_id=ci, sticker=st.file_id)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, fron)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
@@ -435,7 +432,6 @@ def flushqueue(bot, update):
   for qci, rq in replyqueues.items():
     print('flushing queue %d' % (qci,))
     rq.join()
-  #replyqueue.join()
   cmdreply(bot, ci, '<done>')
 
 def cmd_option_get(bot, update):
@@ -519,9 +515,6 @@ def thr_console():
   for line in sys.stdin:
     pass
 
-#replyworker = Thread(target=wthread, args=(replyqueue, 'reply'))
-#replyworker.setDaemon(True)
-#replyworker.start()
 downloadworker = Thread(target=wthread, args=(downloadqueue, 'download'))
 downloadworker.setDaemon(True)
 downloadworker.start()
