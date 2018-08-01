@@ -110,9 +110,9 @@ def get_dbcon():
   cur.execute('SET NAMES utf8mb4')
   return db, cur
 
-def log(conv, username, fromname, sent, text):
+def log(conv, username, fromid, fromname, sent, text):
   db, cur = get_dbcon()
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s)", (conv, username, fromname, sent, text))
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text))
   db.commit()
   db.close()
 
@@ -122,9 +122,9 @@ def log_cmd(conv, username, fromname, cmd):
   db.commit()
   db.close()
 
-def log_sticker(conv, username, fromname, sent, text, file_id, set_name):
+def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name):
   db, cur = get_dbcon()
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s)", (conv, username, fromname, sent, text))
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text))
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
   if file_id not in known_stickers:
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
@@ -173,6 +173,20 @@ def get_sticker_emojis():
   db.close()
   return [unicode(x[0], 'utf8') for x in rows]
 
+def already_pqd(txt):
+  db, cur = get_dbcon()
+  cur.execute("SELECT COUNT(*) FROM `pq` WHERE `message` = %s", (txt,));
+  (exists,) = cur.fetchone()
+  db.close()
+  if exists > 0:
+    return True
+  return False
+
+def log_pq(convid, userid, txt):
+  db, cur = get_dbcon()
+  cur.execute("INSERT INTO `pq` (`convid`, `userid`, `message`) VALUES (%s, %s, %s)", (convid, userid, txt))
+  db.commit()
+  db.close()
 
 def option_set(convid, option, value):
   db, cur = get_dbcon()
@@ -208,7 +222,7 @@ def option_get_float(convid, option, def_u, def_g):
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-def sendreply(bot, ci, fro, fron):
+def sendreply(bot, ci, fro, froi, fron):
   if getreplyqueue(ci).full():
     print('Warning: reply queue full, dropping reply')
     return
@@ -217,7 +231,7 @@ def sendreply(bot, ci, fro, fron):
   def rf():
     msg = getmsg()
     print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8")))
-    log(ci, fro, fron, 1, msg)
+    log(ci, fro, froi, fron, 1, msg)
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if uniform(0, 1) < sp:
       rs = rand_sticker(unicode(msg, 'utf-8'))
@@ -251,16 +265,17 @@ def download_file(bot, ftype, fid, fname):
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
-def getmessage(bot, ci, fro, fron, txt):
+def getmessage(bot, ci, fro, froi, fron, txt):
   print('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
-  log(ci, fro, fron, 0, txt)
+  log(ci, fro, froi, fron, 0, txt)
 
 def cifrofron(update):
   ci = update.message.chat_id
   fro = user_name(update.message.from_user)
   fron = chatname(update.message.chat)
-  return ci, fro, fron
+  froi = update.message.from_user.id
+  return ci, fro, fron, froi
 
 def should_reply(bot, msg, ci, txt = None):
   if msg and msg.reply_to_message and msg.reply_to_message.from_user.id == bot.id:
@@ -276,38 +291,38 @@ def msg(bot, update):
   if not update.message:
     print('No message, channel?')
     return
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
-  getmessage(bot, ci, fro, fron, txt)
+  getmessage(bot, ci, fro, froi, fron, txt)
   if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, fron)
+    sendreply(bot, ci, fro, froi, fron)
   convclean()
 
 def start(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   print('%s/%d /start' % (fro, ci))
-  sendreply(bot, ci, fro, fron)
+  sendreply(bot, ci, fro, froi, fron)
 
 def me(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
-  getmessage(bot, ci, fro, fron, txt)
-  sendreply(bot, ci, fro, fron)
+  getmessage(bot, ci, fro, froi, fron, txt)
+  sendreply(bot, ci, fro, froi, fron)
 
 def sticker(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   st = update.message.sticker
   set = '(unnamed)' if st.set_name is None else st.set_name
   emo = st.emoji or ''
   print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, fron, 0, emo, st.file_id, set)
+  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set)
   if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, fron)
+    sendreply(bot, ci, fro, froi, fron)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
 def video(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   vid = update.message.video
   fid = vid.file_id
   attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
@@ -317,7 +332,7 @@ def video(bot, update):
   log_file(ci, fro, fron, 'video', size, attr, fid)
 
 def document(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   doc = update.message.document
   fid = doc.file_id
   size = doc.file_size
@@ -330,7 +345,7 @@ def document(bot, update):
   log_file(ci, fro, fron, 'document', size, attr, fid)
 
 def audio(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   aud = update.message.audio
   fid = aud.file_id
   size = aud.file_size
@@ -343,7 +358,7 @@ def audio(bot, update):
   log_file(ci, fro, fron, 'audio', size, attr, fid)
 
 def photo(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   txt = update.message.caption
   photos = update.message.photo
   maxsize = 0
@@ -356,15 +371,15 @@ def photo(bot, update):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    getmessage(bot, ci, fro, fron, txt)
+    getmessage(bot, ci, fro, froi, fron, txt)
     if should_reply(bot, update.message, ci, txt):
-      sendreply(bot, ci, fro, fron)
+      sendreply(bot, ci, fro, froi, fron)
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   download_file(bot, 'photo', fid, fid + '.jpg')
   log_file(ci, fro, fron, 'photo', maxsize, attr, fid)
 
 def voice(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   voi = update.message.voice
   fid = voi.file_id
   size = voi.file_size
@@ -375,7 +390,7 @@ def voice(bot, update):
 
 def status(bot, update):
   msg = update.message
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   upd = []
   if msg.new_chat_members:
     for mmb in msg.new_chat_members:
@@ -400,7 +415,7 @@ def cmdreply(bot, ci, text):
   command_replies.add(msg.message_id)
 
 def givesticker(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   foremo = None
   cmd = update.message.text
   m = re.match('^/[^ ]+ (.+)', cmd)
@@ -475,7 +490,7 @@ def cmd_option_flush(bot, update):
   cmdreply(bot, update.message.chat_id, '<done>')
 
 def logcmd(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   print('[COMMAND] %s/%s: %s' % (fron, fro, txt))
   log_cmd(ci, fro, fron, txt)
@@ -491,7 +506,7 @@ def cmd_help(bot, update):
   cmdreply(bot, update.message.chat_id, helpstring)
 
 def cmd_pq(bot, update):
-  ci, fro, fron = cifrofron(update)
+  ci, fro, fron, froi = cifrofron(update)
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != bot.id):
     cmdreply(bot, ci, '<send that as a reply to my message!>')
@@ -503,7 +518,7 @@ def cmd_pq(bot, update):
   if (repl.sticker or not repl.text):
     cmdreply(bot, ci, '<only regular text messages are supported>')
     return
-  if replid in pqed_messages:
+  if (replid in pqed_messages) or (already_pqd(repl.text)):
     cmdreply(bot, ci, '<message already forwarded>')
     return
   if replid in command_replies:
@@ -511,6 +526,7 @@ def cmd_pq(bot, update):
     return
   bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
   pqed_messages.add(replid)
+  log_pq(ci, froi, repl.text)
 
 def thr_console():
   for line in sys.stdin:
