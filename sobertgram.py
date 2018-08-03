@@ -226,7 +226,10 @@ def sendreply(bot, ci, fro, froi, fron):
   if getreplyqueue(ci).full():
     print('Warning: reply queue full, dropping reply')
     return
-  bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
+  try:
+    bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
+  except Exception:
+    sys.exc_clear()
   getmsg = get(ci)
   def rf():
     msg = getmsg()
