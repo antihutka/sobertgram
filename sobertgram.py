@@ -175,12 +175,25 @@ def get_sticker_emojis():
 
 def already_pqd(txt):
   db, cur = get_dbcon()
-  cur.execute("SELECT COUNT(*) FROM `pq` WHERE `message` = %s", (txt,));
+  cur.execute("SELECT COUNT(*) FROM `pq` WHERE `message` = %s", (txt,))
   (exists,) = cur.fetchone()
   db.close()
   if exists > 0:
     return True
   return False
+
+def db_stats(convid):
+  db, cur = get_dbcon()
+  cur.execute("SELECT COUNT(*) FROM `chat` WHERE convid = %s AND sent=0", (convid))
+  (recv,) = cur.fetchone()
+  cur.execute("SELECT COUNT(*) FROM `chat` WHERE convid = %s AND sent=1", (convid))
+  (sent,) = cur.fetchone()
+  cur.execute("SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid))
+  (firstdate,) = cur.fetchone()
+  cur.execute("SELECT COUNT(*)+1 FROM (SELECT COUNT(*) as cnt FROM chat WHERE sent=0 AND SIGN(convid) = SIGN(%s) GROUP BY convid ORDER BY cnt DESC) t WHERE cnt > %s", (convid, recv))
+  (rank,) = cur.fetchone()
+  db.close()
+  return recv, sent, firstdate, rank
 
 def log_pq(convid, userid, txt):
   db, cur = get_dbcon()
@@ -531,6 +544,11 @@ def cmd_pq(bot, update):
   pqed_messages.add(replid)
   log_pq(ci, froi, repl.text)
 
+def cmd_stats(bot, update):
+  ci, fro, fron, froi = cifrofron(update)
+  recv, sent, firstdate, rank = db_stats(ci)
+  cmdreply(bot, ci, 'Chat stats for %s:\nMessages received: %d\nMessages sent: %d\nFirst message: %s\nGroup/user rank: %d' % (fron, recv, sent, firstdate.isoformat(), rank))
+
 def thr_console():
   for line in sys.stdin:
     pass
@@ -570,6 +588,7 @@ dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
+dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
 
 sticker_emojis = set(get_sticker_emojis())
 print("%d sticker emojis loaded" % len(sticker_emojis))
