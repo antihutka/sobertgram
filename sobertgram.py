@@ -516,6 +516,7 @@ Commands:
 /option_set reply_prob <value> - set my reply probability in this chat when my name is not mentioned. Defaults to 0.02 in groups. (0-1.0)
 /option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. Defaults to 0 in groups.
 /pq - forward message to @StuffSobertSays
+/stats - print group/user stats
 """
 
 def cmd_help(bot, update):
