@@ -427,6 +427,7 @@ def status(bot, update):
   log_status(ci, fro, fron, upd)
 
 def cmdreply(bot, ci, text):
+  print('=> %s' % text)
   msg = bot.sendMessage(chat_id=ci, text=text)
   command_replies.add(msg.message_id)
 
