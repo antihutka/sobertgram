@@ -246,7 +246,7 @@ def sendreply(bot, ci, fro, froi, fron):
   getmsg = get(ci)
   def rf():
     msg = getmsg()
-    print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8")))
+    print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8", errors='ignore')))
     log(ci, fro, froi, fron, 1, msg)
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if uniform(0, 1) < sp:
