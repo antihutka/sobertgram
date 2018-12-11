@@ -203,6 +203,13 @@ def log_pq(convid, userid, txt):
   db.commit()
   db.close()
 
+def pq_limit_check(userid):
+  db, cur = get_dbcon()
+  cur.execute("SELECT COUNT(*) FROM pq WHERE userid=%s AND date > DATE_SUB(NOW(), INTERVAL 1 HOUR)", (userid,))
+  res = cur.fetchone()[0]
+  db.close()
+  return res
+
 def option_set(convid, option, value):
   db, cur = get_dbcon()
   cur.execute("REPLACE INTO `options` (`convid`, `option`, `value`) VALUES (%s,%s, %s)", (convid, option, str(value)))
@@ -583,6 +590,9 @@ def cmd_pq(bot, update):
     return
   if replid in command_replies:
     cmdreply(bot, ci, '<that is a silly thing to forward!>')
+    return
+  if pq_limit_check(froi) >= 3:
+    cmdreply(bot, ci, '<slow down a little!>')
     return
   bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
   pqed_messages.add(replid)
