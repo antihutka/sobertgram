@@ -110,9 +110,11 @@ def get_dbcon():
   cur.execute('SET NAMES utf8mb4')
   return db, cur
 
-def log(conv, username, fromid, fromname, sent, text):
+def log(conv, username, fromid, fromname, sent, text, original_message = None):
   db, cur = get_dbcon()
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text))
+  if original_message:
+    cur.execute("INSERT INTO `chat_original` (`id`, `original_text`) VALUES (LAST_INSERT_ID(), %s)", (original_message,))
   db.commit()
   db.close()
 
@@ -232,8 +234,43 @@ def option_get_float(convid, option, def_u, def_g):
   else:
     return def_g
 
+badword_cache = {}
+
+def get_badwords(convid):
+  if convid in badword_cache:
+    return badword_cache[convid]
+  db, cur = get_dbcon()
+  cur.execute("SELECT `badword` FROM `badwords` WHERE `convid` = %s", (convid,))
+  r = set([x[0] for x in cur])
+  db.close()
+  badword_cache[convid] = r
+  return r
+
+def add_badword(convid, badword, by):
+  db, cur = get_dbcon()
+  cur.execute("INSERT INTO `badwords` (`convid`, `badword`, `addedby`) VALUES (%s, %s, %s)", (convid, badword, by))
+  db.commit()
+  db.close()
+  badword_cache[convid].add(badword)
+
+def delete_badword(convid, badword):
+  db, cur = get_dbcon()
+  cur.execute("DELETE FROM `badwords` WHERE `convid` = %s AND `badword` = %s", (convid, badword))
+  db.commit()
+  db.close()
+  badword_cache[convid].remove(badword)
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+def ireplace(old, new, text):
+  idx = 0
+  while idx < len(text):
+    index_l = text.lower().find(old.lower(), idx)
+    if index_l == -1:
+      return text
+    text = text[:index_l] + new + text[index_l + len(old):]
+    idx = index_l + len(new) 
+  return text
 
 def sendreply(bot, ci, fro, froi, fron):
   if getreplyqueue(ci).full():
@@ -244,10 +281,15 @@ def sendreply(bot, ci, fro, froi, fron):
   except Exception:
     sys.exc_clear()
   getmsg = get(ci)
+  badwords = get_badwords(ci)
   def rf():
-    msg = getmsg()
+    omsg = msg = getmsg()
+    for bw in badwords:
+      msg = ireplace(bw, '*' * len(bw), msg)
     print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8", errors='ignore')))
-    log(ci, fro, froi, fron, 1, msg)
+    if omsg != msg:
+      print(' (original)=> %s' % (omsg,))
+    log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if uniform(0, 1) < sp:
       rs = rand_sticker(unicode(msg, 'utf-8'))
@@ -551,6 +593,22 @@ def cmd_stats(bot, update):
   recv, sent, firstdate, rank = db_stats(ci)
   cmdreply(bot, ci, 'Chat stats for %s:\nMessages received: %d\nMessages sent: %d\nFirst message: %s\nGroup/user rank: %d' % (fron, recv, sent, firstdate.isoformat(), rank))
 
+def cmd_badword(bot, update):
+  ci, fro, fron, froi = cifrofron(update)
+  msg = update.message.text
+  msg_split = msg.split(' ', 1)
+  bwset = get_badwords(ci)
+  if len(msg_split) == 1:
+    cmdreply(bot, ci, '< Current bad words: %s (%d) >' % (' '.join(list(bwset)), len(bwset)))
+  else:
+    badword = msg_split[1].strip().lower()
+    if badword in bwset:
+      delete_badword(ci, badword)
+      cmdreply(bot, ci, '< Bad word %s removed >' % (badword))
+    else:
+      add_badword(ci, badword, froi)
+      cmdreply(bot, ci, '< Bad word %s added >' % (badword))
+
 def thr_console():
   for line in sys.stdin:
     pass
@@ -591,6 +649,7 @@ dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
 dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
+dispatcher.add_handler(CommandHandler('badword', cmd_badword), 3)
 
 sticker_emojis = set(get_sticker_emojis())
 print("%d sticker emojis loaded" % len(sticker_emojis))
