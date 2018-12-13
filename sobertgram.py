@@ -290,15 +290,15 @@ def sendreply(bot, ci, fro, froi, fron):
   getmsg = get(ci)
   badwords = get_badwords(ci)
   def rf():
-    omsg = msg = getmsg()
+    omsg = msg = unicode(getmsg(), "utf8", errors='ignore')
     for bw in badwords:
       msg = ireplace(bw, '*' * len(bw), msg)
-    print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8", errors='ignore')))
+    print(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
     if omsg != msg:
       print(' (original)=> %s' % (omsg,))
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if uniform(0, 1) < sp:
-      rs = rand_sticker(unicode(msg, 'utf-8'))
+      rs = rand_sticker(msg)
       if rs:
         print('sending as sticker %s/%s' % (rs[2], rs[0]))
         log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2])
