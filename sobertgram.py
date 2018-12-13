@@ -296,14 +296,15 @@ def sendreply(bot, ci, fro, froi, fron):
     print(' => %s/%s/%d: %s' % (fron, fro, ci, unicode(msg, "utf8", errors='ignore')))
     if omsg != msg:
       print(' (original)=> %s' % (omsg,))
-    log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if uniform(0, 1) < sp:
       rs = rand_sticker(unicode(msg, 'utf-8'))
       if rs:
         print('sending as sticker %s/%s' % (rs[2], rs[0]))
+        log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2])
         bot.sendSticker(chat_id=ci, sticker=rs[0])
         return
+    log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
     bot.sendMessage(chat_id=ci, text=msg)
   getreplyqueue(ci).put(rf)
 
