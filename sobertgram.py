@@ -13,6 +13,7 @@ from threading import Thread
 import traceback
 import os.path
 import unicodedata
+import subprocess
 
 Config = ConfigParser.ConfigParser()
 
@@ -279,7 +280,7 @@ def ireplace(old, new, text):
     idx = index_l + len(new) 
   return text
 
-def sendreply(bot, ci, fro, froi, fron):
+def sendreply(bot, ci, fro, froi, fron, replyto=None):
   if getreplyqueue(ci).full():
     print('Warning: reply queue full, dropping reply')
     return
@@ -305,26 +306,28 @@ def sendreply(bot, ci, fro, froi, fron):
         bot.sendSticker(chat_id=ci, sticker=rs[0])
         return
     log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
-    bot.sendMessage(chat_id=ci, text=msg)
+    bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=replyto)
   getreplyqueue(ci).put(rf)
 
 def fix_name(value):
   value = unicode(re.sub('[/<>:"\\\\|?*]', '_', value))
   return value
 
-def download_file(bot, ftype, fid, fname):
+def download_file(bot, ftype, fid, fname, on_finish=None):
   fname = fix_name(fname)
 
-  if fid in downloaded_files:
-    return
   def df():
     filename = ftype + '/' + fname
     if os.path.isfile(filename):
       print('file ' + filename + ' already exists')
+      if on_finish:
+        on_finish(filename)
       return
     f = bot.getFile(file_id=fid)
     print 'downloading file ' + filename + ' from ' + f.file_path
     f.download(custom_path=filename, timeout=120)
+    if on_finish:
+      on_finish(filename)
     sleep(15)
   if downloadqueue.full():
     print('Warning: download queue full')
@@ -441,7 +444,17 @@ def photo(bot, update):
     if should_reply(bot, update.message, ci, txt):
       sendreply(bot, ci, fro, froi, fron)
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
-  download_file(bot, 'photo', fid, fid + '.jpg')
+  def process_photo(f):
+    print('OCR running on %s' % f)
+    ocrtext = unicode(subprocess.check_output(['tesseract', f, 'stdout']), 'utf8', errors='ignore')
+    print('OCR: %s' % ocrtext)
+    def process_photo_reply(_bot, _job):
+      put(ci, ocrtext)
+      if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
+        print('sending reply')
+        sendreply(bot, ci, fro, froi, fron, replyto=update.message.message_id)
+    updater.job_queue.run_once(process_photo_reply, 0)
+  download_file(bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
   log_file(ci, fro, fron, 'photo', maxsize, attr, fid)
 
 def voice(bot, update):
