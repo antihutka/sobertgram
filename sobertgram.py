@@ -530,7 +530,7 @@ def cmd_option_get(bot, update):
     cmdreply(bot, ci, '<option %s is set to %s>' % (opt, val))
 
 def option_valid(o, v):
-  if o == 'sticker_prob' or o == 'reply_prob':
+  if o == 'sticker_prob' or o == 'reply_prob' or o == 'admin_only':
     if re.match(r'^([0-9]+|[0-9]*\.[0-9]+)$', v):
       return True
     else:
@@ -538,12 +538,28 @@ def option_valid(o, v):
   else:
     return False
 
+def user_is_admin(bot, convid, userid):
+  if convid > 0:
+    return True
+  member = bot.get_chat_member(convid, userid)
+  if member.status == 'administrator' or member.status == 'creator':
+    return True
+  return False
+
+def admin_check(bot, convid, userid):
+  if option_get_float(convid, 'admin_only', 0, 0) == 0:
+    return True
+  return user_is_admin(bot, convid, userid)
+
 def cmd_option_set(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
     cmdreply(bot, ci, '< invalid syntax, use /option_set <option> <value> >')
     return
+  if not admin_check(bot, ci, update.message.from_user.id):
+     cmdreply(bot, ci, '< you are not allowed to use this command >')
+     return
   opt = txt[1]
   val = txt[2]
   if option_valid(opt, val):
@@ -554,6 +570,7 @@ def cmd_option_set(bot, update):
 
 def cmd_option_flush(bot, update):
   options.clear()
+  badword_cache.clear()
   cmdreply(bot, update.message.chat_id, '<done>')
 
 def logcmd(bot, update):
@@ -566,6 +583,8 @@ helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk on
 Commands:
 /option_set reply_prob <value> - set my reply probability in this chat when my name is not mentioned. Defaults to 0.02 in groups. (0-1.0)
 /option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. Defaults to 0 in groups.
+/option_set admin_only <0|1> - when set to 1, only admins can change options and bad words
+/badword bad_word - add or remove bad_word from the per channel bad word list. Lists bad words when used without an argument.
 /pq - forward message to @StuffSobertSays
 /stats - print group/user stats
 """
@@ -612,6 +631,9 @@ def cmd_badword(bot, update):
   if len(msg_split) == 1:
     cmdreply(bot, ci, '< Current bad words: %s (%d) >' % (' '.join(list(bwset)), len(bwset)))
   else:
+    if not admin_check(bot, ci, froi):
+      cmdreply(bot, ci, '< you are not allowed to use this command >')
+      return
     badword = msg_split[1].strip().lower()
     if badword in bwset:
       delete_badword(ci, badword)
