@@ -303,7 +303,8 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None):
   except Exception:
     sys.exc_clear()
   getmsg = get(ci)
-  badwords = get_badwords(ci)
+  badwords = list(get_badwords(ci))
+  badwords.sort(key=len, reverse=True)
   def rf():
     omsg = msg = unicode(getmsg(), "utf8", errors='ignore')
     for bw in badwords:
