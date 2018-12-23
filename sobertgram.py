@@ -59,12 +59,13 @@ def convclean():
       del convos[convid]
 
 def put(convid, text):
+  text = re.sub('[\r\n]+', '\n',text).strip("\r\n")
   if text == '':
     return
-  text = re.sub('[\r\n]+', '\n',text).strip("\r\n")
   try:
     (s, f) = getconv(convid)
     s.send((text + '\n').encode('utf-8', 'ignore'))
+#    print('sent "%s" plus newline' % text)
   except Exception as e:
     print str(e)
     del convos[convid]
@@ -153,6 +154,12 @@ def log_status(conv, username, chatname, updates):
   db, cur = get_dbcon()
   for u in updates:
     cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`) VALUES (%s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1]))
+  db.commit()
+  db.close()
+
+def log_file_text(fileid, texttype, filetext):
+  db, cur = get_dbcon()
+  cur.execute("REPLACE INTO `file_text` (`file_id`, `type`, `file_text`) VALUES (%s, %s, %s)", (fileid, texttype, filetext))
   db.commit()
   db.close()
 
@@ -447,7 +454,11 @@ def photo(bot, update):
   def process_photo(f):
     print('OCR running on %s' % f)
     ocrtext = unicode(subprocess.check_output(['tesseract', f, 'stdout']), 'utf8', errors='ignore')
-    print('OCR: %s' % ocrtext)
+    ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
+    print('OCR: "%s"' % ocrtext)
+    if ocrtext == "":
+      return
+    log_file_text(fid, 'ocr', ocrtext)
     def process_photo_reply(_bot, _job):
       put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
