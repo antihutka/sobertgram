@@ -192,18 +192,25 @@ def already_pqd(txt):
     return True
   return False
 
+def dbcur_queryone(cur, query, args = (), default = None):
+  cur.execute(query, args)
+  row = cur.fetchone()
+  if row and (row[0] is not None):
+    return row[0]
+  return default
+
 def db_stats(convid):
   db, cur = get_dbcon()
-  cur.execute("SELECT COUNT(*) FROM `chat` WHERE convid = %s AND sent=0", (convid))
-  (recv,) = cur.fetchone()
-  cur.execute("SELECT COUNT(*) FROM `chat` WHERE convid = %s AND sent=1", (convid))
-  (sent,) = cur.fetchone()
-  cur.execute("SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid))
-  (firstdate,) = cur.fetchone()
-  cur.execute("SELECT COUNT(*)+1 FROM (SELECT COUNT(*) as cnt FROM chat WHERE sent=0 AND SIGN(convid) = SIGN(%s) GROUP BY convid ORDER BY cnt DESC) t WHERE cnt > %s", (convid, recv))
-  (rank,) = cur.fetchone()
+  recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid), 0)
+  sent = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid), 0)
+  firstdate = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid))
+  rank = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM (SELECT COUNT(*) as cnt FROM chat WHERE sent=0 AND SIGN(convid) = SIGN(%s) GROUP BY convid ORDER BY cnt DESC) t WHERE cnt > %s", (convid, recv))
+  trecv = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_recv'");
+  tsent = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
+  actusr = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid > 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
+  actgrp = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid < 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
   db.close()
-  return recv, sent, firstdate, rank
+  return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp
 
 def log_pq(convid, userid, txt):
   db, cur = get_dbcon()
@@ -644,8 +651,10 @@ def cmd_pq(bot, update):
 
 def cmd_stats(bot, update):
   ci, fro, fron, froi = cifrofron(update)
-  recv, sent, firstdate, rank = db_stats(ci)
-  cmdreply(bot, ci, 'Chat stats for %s:\nMessages received: %d\nMessages sent: %d\nFirst message: %s\nGroup/user rank: %d' % (fron, recv, sent, firstdate.isoformat(), rank))
+  recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp = db_stats(ci)
+  cmdreply(bot, ci, 'Chat stats for %s:\nMessages received: %d (%d total)\nMessages sent: %d (%d total)\nFirst message: %s\nGroup/user rank: %d\n'
+                    'Users/groups active in the last 48 hours: %d/%d'
+                    % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, actusr, actgrp))
 
 def cmd_badword(bot, update):
   ci, fro, fron, froi = cifrofron(update)
