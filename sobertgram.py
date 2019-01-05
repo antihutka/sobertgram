@@ -643,7 +643,7 @@ def cmd_pq(bot, update):
   if replid in command_replies:
     cmdreply(bot, ci, '<that is a silly thing to forward!>')
     return
-  if pq_limit_check(froi) >= 3:
+  if pq_limit_check(froi) >= 5:
     cmdreply(bot, ci, '<slow down a little!>')
     return
   bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
