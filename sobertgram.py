@@ -113,13 +113,15 @@ def get_dbcon():
   cur.execute('SET NAMES utf8mb4')
   return db, cur
 
-def log(conv, username, fromid, fromname, sent, text, original_message = None):
+def log(conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None):
   db, cur = get_dbcon()
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text))
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
+  rowid = cur.lastrowid
   if original_message:
     cur.execute("INSERT INTO `chat_original` (`id`, `original_text`) VALUES (LAST_INSERT_ID(), %s)", (original_message,))
   db.commit()
   db.close()
+  return rowid
 
 def log_cmd(conv, username, fromname, cmd):
   db, cur = get_dbcon()
@@ -127,9 +129,10 @@ def log_cmd(conv, username, fromname, cmd):
   db.commit()
   db.close()
 
-def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name):
+def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None):
   db, cur = get_dbcon()
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text))
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
+  rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
   if file_id not in known_stickers:
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
@@ -142,6 +145,13 @@ def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name)
   if file_id not in known_stickers:
     known_stickers.add(file_id)
     sticker_emojis.add(text)
+  return rowid
+
+def log_add_msg_id(db_id, msg_id):
+  db, cur = get_dbcon()
+  cur.execute("UPDATE `chat` SET `msg_id`=%s WHERE `id`=%s AND msg_id IS NULL", (msg_id, db_id))
+  db.commit()
+  db.close()
 
 def log_file(conv, username, chatname, ftype, fsize, attr, file_id):
   db, cur = get_dbcon()
@@ -330,16 +340,18 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
       rs = rand_sticker(msg)
       if rs:
         print('sending as sticker %s/%s' % (rs[2], rs[0]))
-        log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2])
-        bot.sendSticker(chat_id=ci, sticker=rs[0])
+        dbid = log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2])
+        m = bot.sendSticker(chat_id=ci, sticker=rs[0])
+        log_add_msg_id(dbid, m.message_id)
         return
-    log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
+    dbid = log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
     #print("replyto=%s replyto_cond=%s last=%s" % (str(replyto), str(replyto_cond), str(last_msg_id[ci])))
     if (not replyto) and replyto_cond and (replyto_cond != last_msg_id[ci]):
       reply_to = replyto_cond
     else:
       reply_to = replyto
-    bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
+    m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
+    log_add_msg_id(dbid, m.message_id)
   getreplyqueue(ci).put(rf)
 
 def fix_name(value):
@@ -367,10 +379,10 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
-def getmessage(bot, ci, fro, froi, fron, txt):
+def getmessage(bot, ci, fro, froi, fron, txt, msg_id):
   print('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
-  log(ci, fro, froi, fron, 0, txt)
+  log(ci, fro, froi, fron, 0, txt, msg_id=msg_id)
 
 def cifrofron(update):
   ci = update.message.chat_id
@@ -396,7 +408,7 @@ def msg(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt)
+  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
   convclean()
@@ -410,7 +422,7 @@ def me(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt)
+  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id)
   sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
 
 def sticker(bot, update):
@@ -421,7 +433,7 @@ def sticker(bot, update):
   emo = st.emoji or ''
   print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set)
+  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
@@ -477,7 +489,7 @@ def photo(bot, update):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    getmessage(bot, ci, fro, froi, fron, txt)
+    getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id)
     if should_reply(bot, update.message, ci, txt):
       sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id)
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
