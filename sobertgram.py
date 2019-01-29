@@ -27,6 +27,7 @@ options = {}
 sticker_emojis = None
 pqed_messages = set()
 command_replies = set()
+last_msg_id = {}
 
 def getreplyqueue(convid):
   if convid not in replyqueues:
@@ -294,7 +295,7 @@ def ireplace(old, new, text):
     idx = index_l + len(new) 
   return text
 
-def sendreply(bot, ci, fro, froi, fron, replyto=None):
+def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
   if getreplyqueue(ci).full():
     print('Warning: reply queue full, dropping reply')
     return
@@ -321,7 +322,12 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None):
         bot.sendSticker(chat_id=ci, sticker=rs[0])
         return
     log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None)
-    bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=replyto)
+    #print("replyto=%s replyto_cond=%s last=%s" % (str(replyto), str(replyto_cond), str(last_msg_id[ci])))
+    if (not replyto) and replyto_cond and (replyto_cond != last_msg_id[ci]):
+      reply_to = replyto_cond
+    else:
+      reply_to = replyto
+    bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
   getreplyqueue(ci).put(rf)
 
 def fix_name(value):
@@ -377,9 +383,10 @@ def msg(bot, update):
     return
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
+  last_msg_id[ci] = update.message.message_id
   getmessage(bot, ci, fro, froi, fron, txt)
   if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, froi, fron)
+    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
   convclean()
 
 def start(bot, update):
@@ -390,11 +397,13 @@ def start(bot, update):
 def me(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
+  last_msg_id[ci] = update.message.message_id
   getmessage(bot, ci, fro, froi, fron, txt)
-  sendreply(bot, ci, fro, froi, fron)
+  sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
 
 def sticker(bot, update):
   ci, fro, fron, froi = cifrofron(update)
+  last_msg_id[ci] = update.message.message_id
   st = update.message.sticker
   set = '(unnamed)' if st.set_name is None else st.set_name
   emo = st.emoji or ''
@@ -402,7 +411,7 @@ def sticker(bot, update):
   put(ci, emo)
   log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set)
   if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, froi, fron)
+    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
 def video(bot, update):
@@ -443,6 +452,7 @@ def audio(bot, update):
 
 def photo(bot, update):
   ci, fro, fron, froi = cifrofron(update)
+  last_msg_id[ci] = update.message.message_id
   txt = update.message.caption
   photos = update.message.photo
   maxsize = 0
@@ -457,7 +467,7 @@ def photo(bot, update):
     attr += '; caption=' + txt
     getmessage(bot, ci, fro, froi, fron, txt)
     if should_reply(bot, update.message, ci, txt):
-      sendreply(bot, ci, fro, froi, fron)
+      sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id)
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   def process_photo(f):
     print('OCR running on %s' % f)
