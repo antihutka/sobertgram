@@ -158,6 +158,18 @@ def log_status(conv, username, chatname, updates):
   db.commit()
   db.close()
 
+def log_migration(newid, oldid):
+  db, cur = get_dbcon()
+  try:
+    cur.execute("INSERT INTO `chat_migrations` (`newid`, `oldid`) VALUES (%s, %s)", (newid, oldid))
+    cur.execute("UPDATE `badwords` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
+    cur.execute("UPDATE `options` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
+    db.commit()
+  except:
+    e = sys.exc_info()[0]
+    print("Migration failed: %s" % e)
+  db.close()
+
 def log_file_text(fileid, texttype, filetext):
   db, cur = get_dbcon()
   cur.execute("REPLACE INTO `file_text` (`file_id`, `type`, `file_text`) VALUES (%s, %s, %s)", (fileid, texttype, filetext))
@@ -514,6 +526,7 @@ def status(bot, update):
     upd.append(('supergroup_created', ''))
   if msg.migrate_from_chat_id:
     upd.append(('migrate_from_chat_id', str(msg.migrate_from_chat_id)))
+    log_migration(ci, msg.migrate_from_chat_id)
   for u in upd:
     print('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
   log_status(ci, fro, fron, upd)
