@@ -204,7 +204,7 @@ def get_sticker_emojis():
   cur.execute("SELECT DISTINCT `emoji` from `stickers` WHERE `freqmod` > 0")
   rows = cur.fetchall()
   db.close()
-  return [unicode(x[0], 'utf8') for x in rows]
+  return [x[0] for x in rows]
 
 def already_pqd(txt):
   db, cur = get_dbcon()
@@ -224,9 +224,9 @@ def dbcur_queryone(cur, query, args = (), default = None):
 
 def db_stats(convid):
   db, cur = get_dbcon()
-  recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid), 0)
-  sent = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid), 0)
-  firstdate = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid))
+  recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
+  sent = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid,), 0)
+  firstdate = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid,))
   rank = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM (SELECT COUNT(*) as cnt FROM chat WHERE sent=0 AND SIGN(convid) = SIGN(%s) GROUP BY convid ORDER BY cnt DESC) t WHERE cnt > %s", (convid, recv))
   trecv = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_recv'");
   tsent = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
