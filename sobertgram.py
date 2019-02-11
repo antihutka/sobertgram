@@ -235,7 +235,7 @@ def db_stats(convid):
   recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
   sent = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid,), 0)
   firstdate = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid,))
-  rank = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM (SELECT COUNT(*) as cnt FROM chat WHERE sent=0 AND SIGN(convid) = SIGN(%s) GROUP BY convid ORDER BY cnt DESC) t WHERE cnt > %s", (convid, recv))
+  rank = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM chat_counters WHERE SIGN(convid) = SIGN(%s) AND sent = 0 AND message_count > %s", (convid, recv))
   trecv = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_recv'");
   tsent = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
   actusr = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid > 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
