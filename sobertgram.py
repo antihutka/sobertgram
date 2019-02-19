@@ -68,7 +68,7 @@ def put(convid, text):
     s.send((text + '\n').encode('utf-8', 'ignore'))
 #    print('sent "%s" plus newline' % text)
   except Exception as e:
-    print str(e)
+    print(str(e))
     del convos[convid]
 
 def get(convid):
@@ -77,7 +77,7 @@ def get(convid):
     s.send('\n')
     return lambda: f.readline().rstrip()
   except Exception as e:
-    print str(e)
+    print(str(e))
     del convos[convid]
     return ''
 
@@ -96,7 +96,7 @@ def chatname(chat):
         n = n + ' ' + chat.last_name
       return n
   except Exception as e:
-    print "can't get name: ", str(e)
+    print("can't get name: ", str(e))
     return '<err>'
 
 def lookup_sticker_emoji(emoji):
@@ -146,7 +146,7 @@ def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name,
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
     (exists,) = cur.fetchone()
     if exists == 0:
-      print "Adding sticker <%s> <%s> < %s >" %  (file_id, set_name, text)
+      print("Adding sticker <%s> <%s> < %s >" %  (file_id, set_name, text))
       cur.execute("REPLACE INTO `stickers` (`file_id`, `emoji`, `set_name`) VALUES (%s, %s, %s)", (file_id, text, set_name))
   db.commit()
   db.close()
@@ -378,7 +378,7 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
         on_finish(filename)
       return
     f = bot.getFile(file_id=fid)
-    print 'downloading file ' + filename + ' from ' + f.file_path
+    print('downloading file ' + filename + ' from ' + f.file_path)
     f.download(custom_path=filename, timeout=120)
     if on_finish:
       on_finish(filename)
