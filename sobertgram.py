@@ -7,15 +7,15 @@ import re
 import sys
 from time import time, sleep
 from random import uniform
-import ConfigParser
-from Queue import Queue
+from configparser import ConfigParser
+from queue import Queue
 from threading import Thread
 import traceback
 import os.path
 import unicodedata
 import subprocess
 
-Config = ConfigParser.ConfigParser()
+Config = ConfigParser()
 
 convos = {}
 times = {}
@@ -74,7 +74,7 @@ def put(convid, text):
 def get(convid):
   try:
     (s, f) = getconv(convid)
-    s.send('\n')
+    s.send('\n'.encode('utf8'))
     return lambda: f.readline().rstrip()
   except Exception as e:
     print(str(e))
@@ -337,7 +337,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
   badwords = list(get_badwords(ci))
   badwords.sort(key=len, reverse=True)
   def rf():
-    omsg = msg = unicode(getmsg(), "utf8", errors='ignore')
+    omsg = msg = getmsg()
     for bw in badwords:
       msg = ireplace(bw, '*' * len(bw), msg)
     print(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
@@ -364,7 +364,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
   getreplyqueue(ci).put(rf)
 
 def fix_name(value):
-  value = unicode(re.sub('[/<>:"\\\\|?*]', '_', value))
+  value = re.sub('[/<>:"\\\\|?*]', '_', value)
   return value
 
 def download_file(bot, ftype, fid, fname, on_finish=None):
@@ -508,7 +508,7 @@ def photo(bot, update):
   print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   def process_photo(f):
     print('OCR running on %s' % f)
-    ocrtext = unicode(subprocess.check_output(['tesseract', f, 'stdout']), 'utf8', errors='ignore')
+    ocrtext = subprocess.check_output(['tesseract', f, 'stdout']).decode('utf8', errors='ignore')
     ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
     print('OCR: "%s"' % ocrtext)
     if ocrtext == "":
@@ -567,7 +567,7 @@ def givesticker(bot, update):
   cmd = update.message.text
   m = re.match('^/[^ ]+ (.+)', cmd)
   if m:
-    foremo = unicode(m.group(1)).strip()
+    foremo = m.group(1).strip()
   rs = rand_sticker(foremo)
   if not rs:
     cmdreply(bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
