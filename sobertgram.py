@@ -240,8 +240,9 @@ def db_stats(convid):
   tsent = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
   actusr = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid > 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
   actgrp = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid < 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
+  quality = dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
   db.close()
-  return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp
+  return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality
 
 def log_pq(convid, userid, txt):
   db, cur = get_dbcon()
@@ -700,10 +701,12 @@ def cmd_pq(bot, update):
 
 def cmd_stats(bot, update):
   ci, fro, fron, froi = cifrofron(update)
-  recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp = db_stats(ci)
+  recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality = db_stats(ci)
+  quality_s = ("%.0f%%" % (quality*100)) if quality else "Unknown"
   cmdreply(bot, ci, 'Chat stats for %s:\nMessages received: %d (%d total)\nMessages sent: %d (%d total)\nFirst message: %s\nGroup/user rank: %d\n'
+                    'Chat quality: %s\n'
                     'Users/groups active in the last 48 hours: %d/%d'
-                    % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, actusr, actgrp))
+                    % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, quality_s, actusr, actgrp))
 
 def cmd_badword(bot, update):
   ci, fro, fron, froi = cifrofron(update)
