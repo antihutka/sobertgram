@@ -2,20 +2,19 @@ from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
 from telegram import ChatAction
 import logging
 import socket
-import MySQLdb
 import re
 import sys
 from time import time, sleep
 from random import uniform
-from configparser import ConfigParser
 from queue import Queue
 from threading import Thread
-import traceback
 import os.path
 import unicodedata
 import subprocess
 
-Config = ConfigParser()
+from configuration import Config
+from database import get_dbcon, dbcur_queryone
+import threads
 
 convos = {}
 times = {}
@@ -32,9 +31,7 @@ last_msg_id = {}
 def getreplyqueue(convid):
   if convid not in replyqueues:
     replyqueues[convid] = Queue(maxsize=16)
-    replyworker = Thread(target=wthread, args=(replyqueues[convid], 'reply_' + str(convid)))
-    replyworker.setDaemon(True)
-    replyworker.start()
+    threads.start_thread(args=(replyqueues[convid], 'reply_' + str(convid)))
   return replyqueues[convid]
 
 def getconv(convid):
@@ -106,12 +103,6 @@ def lookup_sticker_emoji(emoji):
   if emoji in sticker_emojis:
     return emoji
   return None
-
-def get_dbcon():
-  db = MySQLdb.connect(host=Config.get('Database', 'Host'), user=Config.get('Database', 'User'), passwd=Config.get('Database', 'Password'), db=Config.get('Database', 'Database'), charset='utf8')
-  cur = db.cursor()
-  cur.execute('SET NAMES utf8mb4')
-  return db, cur
 
 def log(conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None):
   db, cur = get_dbcon()
@@ -222,13 +213,6 @@ def already_pqd(txt):
   if exists > 0:
     return True
   return False
-
-def dbcur_queryone(cur, query, args = (), default = None):
-  cur.execute(query, args)
-  row = cur.fetchone()
-  if row and (row[0] is not None):
-    return row[0]
-  return default
 
 def db_stats(convid):
   db, cur = get_dbcon()
@@ -577,16 +561,6 @@ def givesticker(bot, update):
     print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
     bot.sendSticker(chat_id=ci, sticker=fid)
 
-def wthread(q, n):
-  while True:
-    task = q.get()
-    try:
-      task()
-    except Exception as e:
-      print('Exception in thread %s: %s' % (n, str(e)))
-      traceback.print_exc(file=sys.stdout)
-    q.task_done()
-
 def flushqueue(bot, update):
   ci = update.message.chat_id
   fro = update.message.from_user.username
@@ -731,12 +705,8 @@ def thr_console():
   for line in sys.stdin:
     pass
 
-downloadworker = Thread(target=wthread, args=(downloadqueue, 'download'))
-downloadworker.setDaemon(True)
-downloadworker.start()
-consoleworker = Thread(target=thr_console, args=())
-consoleworker.setDaemon(True)
-consoleworker.start()
+threads.start_thread(args=(downloadqueue, 'download'))
+threads.start_thread(target=thr_console, args=())
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
