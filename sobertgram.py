@@ -317,7 +317,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
   try:
     bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
   except Exception:
-    sys.exc_clear()
+    print("Can't send typing action")
   getmsg = get(ci)
   badwords = list(get_badwords(ci))
   badwords.sort(key=len, reverse=True)
