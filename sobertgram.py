@@ -310,6 +310,18 @@ def ireplace(old, new, text):
     idx = index_l + len(new) 
   return text
 
+def can_send_message(bot, ci):
+  self_member = bot.get_chat_member(ci, bot.id)
+  if self_member.status == 'restricted' and not self_member.can_send_messages:
+    return False
+  return True
+
+def can_send_sticker(bot, ci):
+  self_member = bot.get_chat_member(ci, bot.id)
+  if self_member.status == 'restricted' and not self_member.can_send_other_messages:
+    return False
+  return True
+
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
   if getreplyqueue(ci).full():
     print('Warning: reply queue full, dropping reply')
@@ -334,7 +346,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
     else:
       reply_to = replyto
     last_msg_id[ci] = -1
-    if uniform(0, 1) < sp:
+    if uniform(0, 1) < sp and can_send_sticker(bot, ci):
       rs = rand_sticker(msg)
       if rs:
         print('sending as sticker %s/%s' % (rs[2], rs[0]))
@@ -388,6 +400,8 @@ def cifrofron(update):
   return ci, fro, fron, froi
 
 def should_reply(bot, msg, ci, txt = None):
+  if not can_send_message(bot, ci):
+    return False
   if msg and msg.reply_to_message and msg.reply_to_message.from_user.id == bot.id:
     return True
   if not txt:
