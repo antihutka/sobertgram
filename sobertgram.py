@@ -21,7 +21,7 @@ times = {}
 known_stickers = set()
 downloaded_files = set()
 replyqueues = {}
-downloadqueue = Queue(maxsize=256)
+downloadqueue = Queue(maxsize=1024)
 options = {}
 sticker_emojis = None
 pqed_messages = set()
@@ -38,7 +38,7 @@ def getconv(convid):
   if convid not in convos:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((Config.get('Backend', 'Host'), Config.getint('Backend', 'Port')))
-    f = s.makefile()
+    f = s.makefile(errors='ignore')
     convos[convid] = (s,f)
   times[convid] = time()
   return convos[convid]
@@ -367,9 +367,11 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
     f.download(custom_path=filename, timeout=120)
     if on_finish:
       on_finish(filename)
-    sleep(15)
+    sleep(10)
   if downloadqueue.full():
     print('Warning: download queue full')
+    if not on_finish:
+      return
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
