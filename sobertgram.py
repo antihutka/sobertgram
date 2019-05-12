@@ -488,6 +488,10 @@ def audio(bot, update):
   log_file(ci, fro, fron, 'audio', size, attr, fid)
 
 def photo(bot, update):
+  if not update.message:
+    print('Weird, update has no message attached:')
+    print(update)
+    return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
