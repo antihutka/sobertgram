@@ -45,13 +45,21 @@ def update_step(db, cur):
   convid = chats_to_update[0][0]
   chatname = chats_to_update[0][4]
   print("Updating stats for %d %s" % (convid, chatname))
+  cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
+    "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
+  uniqueness = cur.fetchone()[0]
+  cur.execute("SELECT message_count FROM chat_counters WHERE convid = %s AND sent = 0", (convid,))
+  msgcount = cur.fetchone()[0]
+  cur.execute("SELECT COUNT(*) FROM chat WHERE sent=0 AND convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
+  msgcount_v = cur.fetchone()[0]
+  db.commit()
+  print("New uniqueness=%.3f count=%d countv=%d" % (uniqueness, msgcount, msgcount_v))
   cur.execute("UPDATE chat_uniqueness SET "
-    "uniqueness=COALESCE((SELECT SUM(IF(count=1, 1, 0)) / COUNT(*) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
-      "WHERE chat.sent = 0 AND chat.convid=chat_uniqueness.convid AND text NOT IN (SELECT DISTINCT emoji FROM stickers)), 0), "
-    "last_count=(SELECT message_count FROM chat_counters WHERE chat_counters.convid = chat_uniqueness.convid AND sent=0), "
-    "last_count_valid=(SELECT COUNT(*) FROM chat WHERE chat.sent = 0 AND chat.convid=chat_uniqueness.convid AND text NOT IN (SELECT DISTINCT emoji FROM stickers)), "
+    "uniqueness=%s, "
+    "last_count=%s, "
+    "last_count_valid=%s, "
     "last_update = CURRENT_TIMESTAMP "
-    "WHERE convid=%s", (convid,))
+    "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, convid))
   db.commit()
   endtime = time.time()
   elaps = endtime-starttime
