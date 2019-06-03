@@ -438,6 +438,8 @@ def me(bot, update):
   sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
 
 def sticker(bot, update):
+  if not update.message:
+    return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
@@ -452,6 +454,8 @@ def sticker(bot, update):
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
 def video(bot, update):
+  if not update.message:
+    return
   ci, fro, fron, froi = cifrofron(update)
   vid = update.message.video
   fid = vid.file_id
@@ -462,6 +466,8 @@ def video(bot, update):
   log_file(ci, fro, fron, 'video', size, attr, fid)
 
 def document(bot, update):
+  if not update.message:
+    return
   ci, fro, fron, froi = cifrofron(update)
   doc = update.message.document
   fid = doc.file_id
@@ -475,6 +481,8 @@ def document(bot, update):
   log_file(ci, fro, fron, 'document', size, attr, fid)
 
 def audio(bot, update):
+  if not update.message:
+    return
   ci, fro, fron, froi = cifrofron(update)
   aud = update.message.audio
   fid = aud.file_id
@@ -489,8 +497,6 @@ def audio(bot, update):
 
 def photo(bot, update):
   if not update.message:
-    print('Weird, update has no message attached:')
-    print(update)
     return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
