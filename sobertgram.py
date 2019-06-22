@@ -241,6 +241,13 @@ def pq_limit_check(userid):
   db.close()
   return res
 
+def cmd_limit_check(convid):
+  db, cur = get_dbcon()
+  cur.execute("SELECT COUNT(*) FROM commands WHERE convid=%s AND date > DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND id > (SELECT MAX(id) - 1000 FROM commands)", (convid,))
+  res = cur.fetchone()[0]
+  db.close()
+  return res
+
 def option_set(convid, option, value):
   db, cur = get_dbcon()
   cur.execute("REPLACE INTO `options` (`convid`, `option`, `value`) VALUES (%s,%s, %s)", (convid, option, str(value)))
@@ -588,6 +595,9 @@ def givesticker(bot, update):
     bot.sendSticker(chat_id=ci, sticker=fid)
 
 def flushqueue(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   ci = update.message.chat_id
   fro = update.message.from_user.username
   print('%s/%d requested queue flush' % (fro, ci))
@@ -598,6 +608,9 @@ def flushqueue(bot, update):
   cmdreply(bot, ci, '<done>')
 
 def cmd_option_get(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 2):
@@ -633,6 +646,9 @@ def admin_check(bot, convid, userid):
   return user_is_admin(bot, convid, userid)
 
 def cmd_option_set(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
@@ -671,9 +687,15 @@ Commands:
 """
 
 def cmd_help(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   cmdreply(bot, update.message.chat_id, helpstring)
 
 def cmd_pq(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != bot.id):
@@ -700,6 +722,9 @@ def cmd_pq(bot, update):
   log_pq(ci, froi, repl.text)
 
 def cmd_stats(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   ci, fro, fron, froi = cifrofron(update)
   recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality = db_stats(ci)
   quality_s = ("%.0f%%" % (quality*100)) if quality else "Unknown"
@@ -709,6 +734,9 @@ def cmd_stats(bot, update):
                     % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, quality_s, actusr, actgrp))
 
 def cmd_badword(bot, update):
+  if (cmd_limit_check(update.message.chat_id) > 100):
+    print('rate limited!')
+    return
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message.text
   msg_split = msg.split(' ', 1)
