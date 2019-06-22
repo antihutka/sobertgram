@@ -250,7 +250,7 @@ def get_badwords(convid):
     return badword_cache[convid]
   db, cur = get_dbcon()
   cur.execute("SELECT `badword` FROM `badwords` WHERE `convid` = %s", (convid,))
-  r = set([x[0] for x in cur])
+  r = [x[0] for x in cur]
   db.close()
   badword_cache[convid] = r
   return r
@@ -260,7 +260,7 @@ def add_badword(convid, badword, by):
   cur.execute("INSERT INTO `badwords` (`convid`, `badword`, `addedby`) VALUES (%s, %s, %s)", (convid, badword, by))
   db.commit()
   db.close()
-  badword_cache[convid].add(badword)
+  badword_cache[convid].append(badword)
 
 def delete_badword(convid, badword):
   db, cur = get_dbcon()
@@ -301,7 +301,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
     bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
   except Exception:
     logger.exception("Can't send typing action")
-  badwords = list(get_badwords(ci))
+  badwords = get_badwords(ci)
   badwords.sort(key=len, reverse=True)
   def rf(txt):
     omsg = msg = txt
@@ -700,20 +700,20 @@ def cmd_badword(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message.text
   msg_split = msg.split(' ', 1)
-  bwset = get_badwords(ci)
+  bw = get_badwords(ci)
   if len(msg_split) == 1:
-    cmdreply(bot, ci, '< Current bad words: %s (%d) >' % (' '.join(list(bwset)), len(bwset)))
+    cmdreply(bot, ci, '< Current bad words: %s (%d) >' % (' '.join((repr(w) for w in bw)), len(bw)))
   else:
     if not admin_check(bot, ci, froi):
       cmdreply(bot, ci, '< you are not allowed to use this command >')
       return
     badword = msg_split[1].strip().lower()
-    if badword in bwset:
+    if badword in bw:
       delete_badword(ci, badword)
-      cmdreply(bot, ci, '< Bad word %s removed >' % (badword))
+      cmdreply(bot, ci, '< Bad word %s removed >' % (repr(badword)))
     else:
       add_badword(ci, badword, froi)
-      cmdreply(bot, ci, '< Bad word %s added >' % (badword))
+      cmdreply(bot, ci, '< Bad word %s added >' % (repr(badword)))
 
 def thr_console():
   for line in sys.stdin:
