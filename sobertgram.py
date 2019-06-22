@@ -708,6 +708,9 @@ def cmd_badword(bot, update):
       cmdreply(bot, ci, '< you are not allowed to use this command >')
       return
     badword = msg_split[1].strip().lower()
+    if '\n' in badword:
+      cmdreply(bot, ci, '< Bad word contains newline >')
+      return
     if badword in bw:
       delete_badword(ci, badword)
       cmdreply(bot, ci, '< Bad word %s removed >' % (repr(badword)))
