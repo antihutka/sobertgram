@@ -15,68 +15,32 @@ import subprocess
 from configuration import Config
 from database import get_dbcon, dbcur_queryone
 import threads
+from httpnn import HTTPNN
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 convos = {}
 times = {}
 known_stickers = set()
 downloaded_files = set()
-replyqueues = {}
 downloadqueue = Queue(maxsize=1024)
 options = {}
 sticker_emojis = None
 pqed_messages = set()
 command_replies = set()
 last_msg_id = {}
+logger = logging.getLogger(__file__)
 
-def getreplyqueue(convid):
-  if convid not in replyqueues:
-    replyqueues[convid] = Queue(maxsize=16)
-    threads.start_thread(args=(replyqueues[convid], 'reply_' + str(convid)))
-  return replyqueues[convid]
-
-def getconv(convid):
-  if convid not in convos:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((Config.get('Backend', 'Host'), Config.getint('Backend', 'Port')))
-    f = s.makefile(errors='ignore')
-    convos[convid] = (s,f)
-  times[convid] = time()
-  return convos[convid]
-
-def convclean():
-  now = time()
-  for convid in times:
-    if (convid in convos) and (times[convid] + Config.getfloat('Chat', 'Timeout') * 60 * 60 < now):
-      print('Deleting conversation %d' % (convid,))
-      getreplyqueue(convid).join()
-      # TODO remove the queue
-      s = convos[convid][0]
-      s.shutdown(socket.SHUT_RDWR)
-      s.close()
-      convos[convid][1].close()
-      del convos[convid]
 
 def put(convid, text):
-  text = re.sub('[\r\n]+', '\n',text).strip("\r\n")
-  if text == '':
-    return
-  try:
-    (s, f) = getconv(convid)
-    s.send((text + '\n').encode('utf-8', 'ignore'))
-#    print('sent "%s" plus newline' % text)
-  except Exception as e:
-    print(str(e))
-    del convos[convid]
+  nn.run_from_thread(nn.put, str(convid), text)
 
-def get(convid):
-  try:
-    (s, f) = getconv(convid)
-    s.send('\n'.encode('utf8'))
-    return lambda: f.readline().rstrip()
-  except Exception as e:
-    print(str(e))
-    del convos[convid]
-    return ''
+async def get_cb_as(callback, convid, bad_words):
+  text = await nn.get(str(convid), bad_words)
+  await asyncio.get_event_loop().run_in_executor(None, callback, text)
+
+def get_cb(callback, convid, bad_words):
+  nn.run_from_thread(get_cb_as, callback, convid, bad_words)
 
 def user_name(user):
   if user.username:
@@ -330,18 +294,17 @@ def can_send_sticker(bot, ci):
   return True
 
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
-  if getreplyqueue(ci).full():
+  if asyncio.run_coroutine_threadsafe(nn.queued_for_key(str(ci)), nn.loop).result() > 16:
     print('Warning: reply queue full, dropping reply')
     return
   try:
     bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
   except Exception:
-    print("Can't send typing action")
-  getmsg = get(ci)
+    logger.exception("Can't send typing action")
   badwords = list(get_badwords(ci))
   badwords.sort(key=len, reverse=True)
-  def rf():
-    omsg = msg = getmsg()
+  def rf(txt):
+    omsg = msg = txt
     for bw in badwords:
       msg = ireplace(bw, '*' * len(bw), msg)
     print(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
@@ -362,10 +325,9 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
         log_add_msg_id(dbid, m.message_id)
         return
     dbid = log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond)
-    #print("replyto=%s replyto_cond=%s last=%s" % (str(replyto), str(replyto_cond), str(last_msg_id[ci])))
     m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
     log_add_msg_id(dbid, m.message_id)
-  getreplyqueue(ci).put(rf)
+  get_cb(rf, ci, badwords)
 
 def fix_name(value):
   value = re.sub('[/<>:"\\\\|?*]', '_', value)
@@ -420,7 +382,6 @@ def should_reply(bot, msg, ci, txt = None):
 
 def msg(bot, update):
   if not update.message:
-    print('No message, channel?')
     return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
@@ -429,7 +390,6 @@ def msg(bot, update):
   getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
-  convclean()
 
 def start(bot, update):
   ci, fro, fron, froi = cifrofron(update)
@@ -765,6 +725,10 @@ threads.start_thread(target=thr_console, args=())
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
 Config.read(sys.argv[1])
+
+nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
+nn.run_thread()
+nn.loop.set_default_executor(ThreadPoolExecutor(max_workers=4))
 
 updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15})
 dispatcher = updater.dispatcher
