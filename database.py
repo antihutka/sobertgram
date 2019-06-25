@@ -14,3 +14,22 @@ def dbcur_queryone(cur, query, args = (), default = None):
   if row and (row[0] is not None):
     return row[0]
   return default
+
+def with_cursor(infun):
+  def outfun(*args, **kwargs):
+    db = MySQLdb.connect(
+      host=Config.get('Database', 'Host'),
+      user=Config.get('Database', 'User'),
+      passwd=Config.get('Database', 'Password'),
+      db=Config.get('Database', 'Database'),
+      charset='utf8')
+    try:
+      with db as cur:
+        cur = db.cursor()
+        cur.execute('SET NAMES utf8mb4')
+        ret = infun(cur, *args, **kwargs)
+        db.commit()
+        return ret
+    finally:
+      db.close()
+  return outfun

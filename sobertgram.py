@@ -13,7 +13,7 @@ import unicodedata
 import subprocess
 
 from configuration import Config
-from database import get_dbcon, dbcur_queryone
+from database import dbcur_queryone, with_cursor
 import threads
 from httpnn import HTTPNN
 import asyncio
@@ -68,8 +68,8 @@ def lookup_sticker_emoji(emoji):
     return emoji
   return None
 
-def log(conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None):
-  db, cur = get_dbcon()
+@with_cursor
+def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None):
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
   rowid = cur.lastrowid
   if original_message:
@@ -78,18 +78,14 @@ def log(conv, username, fromid, fromname, sent, text, original_message = None, m
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
   if fwd_from:
     cur.execute("INSERT INTO `forwarded_from` (`id`, `from_user`) VALUES (LAST_INSERT_ID(), %s)", (fwd_from,))
-  db.commit()
-  db.close()
   return rowid
 
-def log_cmd(conv, username, fromname, cmd):
-  db, cur = get_dbcon()
+@with_cursor
+def log_cmd(cur, conv, username, fromname, cmd):
   cur.execute("INSERT INTO `commands` (`convid`, `from`, `chatname`, `command`) VALUES (%s, %s, %s, %s)", (conv, username, fromname, cmd))
-  db.commit()
-  db.close()
 
-def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None):
-  db, cur = get_dbcon()
+@with_cursor
+def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None):
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
   rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
@@ -103,54 +99,42 @@ def log_sticker(conv, username, fromid, fromname, sent, text, file_id, set_name,
     if exists == 0:
       print("Adding sticker <%s> <%s> < %s >" %  (file_id, set_name, text))
       cur.execute("REPLACE INTO `stickers` (`file_id`, `emoji`, `set_name`) VALUES (%s, %s, %s)", (file_id, text, set_name))
-  db.commit()
-  db.close()
   if file_id not in known_stickers:
     known_stickers.add(file_id)
     sticker_emojis.add(text)
   return rowid
 
-def log_add_msg_id(db_id, msg_id):
-  db, cur = get_dbcon()
+@with_cursor
+def log_add_msg_id(cur, db_id, msg_id):
   cur.execute("UPDATE `chat` SET `msg_id`=%s WHERE `id`=%s AND msg_id IS NULL", (msg_id, db_id))
-  db.commit()
-  db.close()
 
-def log_file(conv, username, chatname, ftype, fsize, attr, file_id):
-  db, cur = get_dbcon()
+@with_cursor
+def log_file(cur, conv, username, chatname, ftype, fsize, attr, file_id):
   cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id))
-  db.commit()
-  db.close()
 
-def log_status(conv, username, chatname, updates):
+@with_cursor
+def log_status(cur, conv, username, chatname, updates):
   if not updates:
     return
-  db, cur = get_dbcon()
   for u in updates:
     cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`) VALUES (%s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1]))
-  db.commit()
-  db.close()
 
-def log_migration(newid, oldid):
-  db, cur = get_dbcon()
+@with_cursor
+def log_migration(cur, newid, oldid):
   try:
     cur.execute("INSERT INTO `chat_migrations` (`newid`, `oldid`) VALUES (%s, %s)", (newid, oldid))
     cur.execute("UPDATE `badwords` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
     cur.execute("UPDATE `options` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
-    db.commit()
   except:
     e = sys.exc_info()[0]
     print("Migration failed: %s" % e)
-  db.close()
 
-def log_file_text(fileid, texttype, filetext):
-  db, cur = get_dbcon()
+@with_cursor
+def log_file_text(cur, fileid, texttype, filetext):
   cur.execute("REPLACE INTO `file_text` (`file_id`, `type`, `file_text`) VALUES (%s, %s, %s)", (fileid, texttype, filetext))
-  db.commit()
-  db.close()
 
-def rand_sticker(emoji = None):
-  db, cur = get_dbcon()
+@with_cursor
+def rand_sticker(cur, emoji = None):
   if emoji:
     emoji = lookup_sticker_emoji(emoji)
     if not emoji:
@@ -159,27 +143,24 @@ def rand_sticker(emoji = None):
   else:
     cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `freqmod` > 0 ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1")
   row = cur.fetchone()
-  db.close()
   return row
 
-def get_sticker_emojis():
-  db, cur = get_dbcon()
+@with_cursor
+def get_sticker_emojis(cur):
   cur.execute("SELECT DISTINCT `emoji` from `stickers` WHERE `freqmod` > 0")
   rows = cur.fetchall()
-  db.close()
   return [x[0] for x in rows]
 
-def already_pqd(txt):
-  db, cur = get_dbcon()
+@with_cursor
+def already_pqd(cur, txt):
   cur.execute("SELECT COUNT(*) FROM `pq` WHERE `message` = %s", (txt,))
   (exists,) = cur.fetchone()
-  db.close()
   if exists > 0:
     return True
   return False
 
-def db_stats(convid):
-  db, cur = get_dbcon()
+@with_cursor
+def db_stats(cur, convid):
   recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
   sent = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid,), 0)
   firstdate = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid,))
@@ -189,40 +170,33 @@ def db_stats(convid):
   actusr = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid > 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
   actgrp = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid < 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
   quality = dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
-  db.close()
   return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality
 
-def log_pq(convid, userid, txt):
-  db, cur = get_dbcon()
+@with_cursor
+def log_pq(cur, convid, userid, txt):
   cur.execute("INSERT INTO `pq` (`convid`, `userid`, `message`) VALUES (%s, %s, %s)", (convid, userid, txt))
-  db.commit()
-  db.close()
 
-def pq_limit_check(userid):
-  db, cur = get_dbcon()
+@with_cursor
+def pq_limit_check(cur, userid):
   cur.execute("SELECT COUNT(*) FROM pq WHERE userid=%s AND date > DATE_SUB(NOW(), INTERVAL 1 HOUR)", (userid,))
   res = cur.fetchone()[0]
-  db.close()
   return res
 
-def cmd_limit_check(convid):
-  db, cur = get_dbcon()
+@with_cursor
+def cmd_limit_check(cur, convid):
   cur.execute("SELECT COUNT(*) FROM commands WHERE convid=%s AND date > DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND id > (SELECT MAX(id) - 1000 FROM commands)", (convid,))
   res = cur.fetchone()[0]
-  db.close()
   return res
 
-def option_set(convid, option, value):
-  db, cur = get_dbcon()
+@with_cursor
+def option_set(cur, convid, option, value):
   cur.execute("REPLACE INTO `options` (`convid`, `option`, `value`) VALUES (%s,%s, %s)", (convid, option, str(value)))
-  db.commit()
-  db.close()
   options[(convid, option)] = value
 
-def option_get_raw(convid, option):
+@with_cursor
+def option_get_raw(cur, convid, option):
   if (convid, option) in options:
     return options[(convid, option)]
-  db, cur = get_dbcon()
   cur.execute("SELECT `value` FROM `options` WHERE `convid` = %s AND `option` = %s", (convid, option))
   row = cur.fetchone()
   if row != None:
@@ -245,28 +219,23 @@ def option_get_float(convid, option, def_u, def_g):
 
 badword_cache = {}
 
-def get_badwords(convid):
+@with_cursor
+def get_badwords(cur, convid):
   if convid in badword_cache:
     return badword_cache[convid]
-  db, cur = get_dbcon()
   cur.execute("SELECT `badword` FROM `badwords` WHERE `convid` = %s", (convid,))
   r = [x[0] for x in cur]
-  db.close()
   badword_cache[convid] = r
   return r
 
-def add_badword(convid, badword, by):
-  db, cur = get_dbcon()
+@with_cursor
+def add_badword(cur, convid, badword, by):
   cur.execute("INSERT INTO `badwords` (`convid`, `badword`, `addedby`) VALUES (%s, %s, %s)", (convid, badword, by))
-  db.commit()
-  db.close()
   badword_cache[convid].append(badword)
 
-def delete_badword(convid, badword):
-  db, cur = get_dbcon()
+@with_cursor
+def delete_badword(cur, convid, badword):
   cur.execute("DELETE FROM `badwords` WHERE `convid` = %s AND `badword` = %s", (convid, badword))
-  db.commit()
-  db.close()
   badword_cache[convid].remove(badword)
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
