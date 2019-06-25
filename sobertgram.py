@@ -20,6 +20,10 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from util import retry
 
+if len(sys.argv) != 2:
+  raise Exception("Wrong number of arguments")
+Config.read(sys.argv[1])
+
 convos = {}
 times = {}
 known_stickers = set()
@@ -57,8 +61,8 @@ def chatname(chat):
       if chat.last_name:
         n = n + ' ' + chat.last_name
       return n
-  except Exception as e:
-    print("can't get name: ", str(e))
+  except:
+    logger.exception("can't get name:")
     return '<err>'
 
 def lookup_sticker_emoji(emoji):
@@ -102,7 +106,7 @@ def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
     (exists,) = cur.fetchone()
     if exists == 0:
-      print("Adding sticker <%s> <%s> < %s >" %  (file_id, set_name, text))
+      logger.info("Adding sticker <%s> <%s> < %s >" % (file_id, set_name, text))
       cur.execute("REPLACE INTO `stickers` (`file_id`, `emoji`, `set_name`) VALUES (%s, %s, %s)", (file_id, text, set_name))
   if file_id not in known_stickers:
     known_stickers.add(file_id)
@@ -135,8 +139,7 @@ def log_migration(cur, newid, oldid):
     cur.execute("UPDATE `badwords` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
     cur.execute("UPDATE `options` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
   except:
-    e = sys.exc_info()[0]
-    print("Migration failed: %s" % e)
+    logger.exception("Migration failed:")
 
 @retry(5)
 @with_cursor
@@ -229,8 +232,8 @@ def option_get_float(convid, option, def_u, def_g):
     oraw = option_get_raw(convid, option)
     if oraw != None:
       return float(oraw)
-  except Exception as e:
-    print("Error getting option %s for conv %d: %s" % (option, convid, str(e)))
+  except:
+    logger.exception("Error getting option %s for conv %d" % (option, convid))
   if convid > 0:
     return def_u
   else:
@@ -260,7 +263,14 @@ def delete_badword(cur, convid, badword):
   cur.execute("DELETE FROM `badwords` WHERE `convid` = %s AND `badword` = %s", (convid, badword))
   badword_cache[convid].remove(badword)
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+def setup_logging():
+  console = logging.StreamHandler()
+  console.setLevel(logging.WARNING)
+  logfile = logging.FileHandler(Config.get('Logging', 'Logfile'))
+  logfile.setLevel(logging.INFO)
+  logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, handlers = [console, logfile])
+setup_logging()
+
 
 def ireplace(old, new, text):
   idx = 0
@@ -286,7 +296,7 @@ def can_send_sticker(bot, ci):
 
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
   if asyncio.run_coroutine_threadsafe(nn.queued_for_key(str(ci)), nn.loop).result() > 16:
-    print('Warning: reply queue full, dropping reply')
+    logger.warning('Warning: reply queue full, dropping reply')
     return
   try:
     bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
@@ -298,9 +308,9 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
     omsg = msg = txt
     for bw in badwords:
       msg = ireplace(bw, '*' * len(bw), msg)
-    print(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
+    logging.info(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
     if omsg != msg:
-      print(' (original)=> %s' % (omsg,))
+      logging.info(' (original)=> %s' % (omsg,))
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if (not replyto) and replyto_cond and (replyto_cond != last_msg_id[ci]):
       reply_to = replyto_cond
@@ -310,7 +320,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
     if uniform(0, 1) < sp and can_send_sticker(bot, ci):
       rs = rand_sticker(msg)
       if rs:
-        print('sending as sticker %s/%s' % (rs[2], rs[0]))
+        logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond)
         m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         log_add_msg_id(dbid, m.message_id)
@@ -330,25 +340,25 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
   def df():
     filename = ftype + '/' + fname
     if os.path.isfile(filename):
-      print('file ' + filename + ' already exists')
+      logging.info('file ' + filename + ' already exists')
       if on_finish:
         on_finish(filename)
       return
     f = bot.getFile(file_id=fid)
-    print('downloading file ' + filename + ' from ' + f.file_path)
+    logging.info('downloading file ' + filename + ' from ' + f.file_path)
     f.download(custom_path=filename, timeout=120)
     if on_finish:
       on_finish(filename)
     sleep(10)
   if downloadqueue.full():
-    print('Warning: download queue full')
+    logging.warning('Warning: download queue full')
     if not on_finish:
       return
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
 def getmessage(bot, ci, fro, froi, fron, txt, msg_id, reply_to_id, fwd_from):
-  print('%s/%s/%d: %s' % (fron, fro, ci, txt))
+  logging.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
   log(ci, fro, froi, fron, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, fwd_from = fwd_from)
 
@@ -384,7 +394,7 @@ def msg(bot, update):
 
 def start(bot, update):
   ci, fro, fron, froi = cifrofron(update)
-  print('%s/%d /start' % (fro, ci))
+  logging.info('%s/%d /start' % (fro, ci))
   sendreply(bot, ci, fro, froi, fron)
 
 def me(bot, update):
@@ -404,7 +414,7 @@ def sticker(bot, update):
   st = update.message.sticker
   set = '(unnamed)' if st.set_name is None else st.set_name
   emo = st.emoji or ''
-  print('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
+  logging.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
   log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
   if should_reply(bot, update.message, ci):
@@ -419,7 +429,7 @@ def video(bot, update):
   fid = vid.file_id
   attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
   size = vid.file_size
-  print('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logging.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'video', fid, fid + '.mp4')
   log_file(ci, fro, fron, 'video', size, attr, fid)
 
@@ -434,7 +444,7 @@ def document(bot, update):
   if not name:
     name = '_unnamed_.mp4'
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
-  print('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logging.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'document', fid, fid + ' ' + name)
   log_file(ci, fro, fron, 'document', size, attr, fid)
 
@@ -449,7 +459,7 @@ def audio(bot, update):
   if aud.mime_type == 'audio/mp3':
     ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
-  print('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logging.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
   log_file(ci, fro, fron, 'audio', size, attr, fid)
 
@@ -474,19 +484,19 @@ def photo(bot, update):
     getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
     if should_reply(bot, update.message, ci, txt):
       sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id)
-  print('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
+  logging.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   def process_photo(f):
-    print('OCR running on %s' % f)
+    logging.info('OCR running on %s' % f)
     ocrtext = subprocess.check_output(['tesseract', f, 'stdout']).decode('utf8', errors='ignore')
     ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
-    print('OCR: "%s"' % ocrtext)
+    logging.info('OCR: "%s"' % ocrtext)
     if ocrtext == "":
       return
     log_file_text(fid, 'ocr', ocrtext)
     def process_photo_reply(_bot, _job):
       put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
-        print('sending reply')
+        logging.info('sending reply')
         sendreply(bot, ci, fro, froi, fron, replyto=update.message.message_id)
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
@@ -498,7 +508,7 @@ def voice(bot, update):
   fid = voi.file_id
   size = voi.file_size
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
-  print('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logging.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'voice', fid, fid + '.opus')
   log_file(ci, fro, fron, 'voice', size, attr, fid)
 
@@ -522,11 +532,11 @@ def status(bot, update):
     upd.append(('migrate_from_chat_id', str(msg.migrate_from_chat_id)))
     log_migration(ci, msg.migrate_from_chat_id)
   for u in upd:
-    print('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
+    logging.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
   log_status(ci, fro, fron, upd)
 
 def cmdreply(bot, ci, text):
-  print('=> %s' % text)
+  logging.info('=> %s' % text)
   msg = bot.sendMessage(chat_id=ci, text=text)
   command_replies.add(msg.message_id)
 
@@ -542,26 +552,30 @@ def givesticker(bot, update):
     cmdreply(bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
   else:
     fid, emo, set = rs
-    print('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
+    logging.info('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
     bot.sendSticker(chat_id=ci, sticker=fid)
 
+def cmd_ratelimit(inf):
+  def outf(bot, update, *args, **kwargs):
+    if (cmd_limit_check(update.message.chat_id) > 100):
+      logging.warning('rate limited!')
+      return
+    inf(bot, update, *args, **kwargs)
+  return outf
+
+@cmd_ratelimit
 def flushqueue(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   ci = update.message.chat_id
   fro = update.message.from_user.username
-  print('%s/%d requested queue flush' % (fro, ci))
+  logging.warning('%s/%d requested queue flush' % (fro, ci))
   cmdreply(bot, ci, '<flush requested>')
   for qci, rq in replyqueues.items():
-    print('flushing queue %d' % (qci,))
+    logging.warning('flushing queue %d' % (qci,))
     rq.join()
   cmdreply(bot, ci, '<done>')
 
+@cmd_ratelimit
 def cmd_option_get(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 2):
@@ -596,10 +610,8 @@ def admin_check(bot, convid, userid):
     return True
   return user_is_admin(bot, convid, userid)
 
+@cmd_ratelimit
 def cmd_option_set(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
@@ -624,7 +636,7 @@ def cmd_option_flush(bot, update):
 def logcmd(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
-  print('[COMMAND] %s/%s: %s' % (fron, fro, txt))
+  logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
   log_cmd(ci, fro, fron, txt)
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
@@ -637,16 +649,12 @@ Commands:
 /stats - print group/user stats
 """
 
+@cmd_ratelimit
 def cmd_help(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   cmdreply(bot, update.message.chat_id, helpstring)
 
+@cmd_ratelimit
 def cmd_pq(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != bot.id):
@@ -672,10 +680,8 @@ def cmd_pq(bot, update):
   pqed_messages.add(replid)
   log_pq(ci, froi, repl.text)
 
+@cmd_ratelimit
 def cmd_stats(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   ci, fro, fron, froi = cifrofron(update)
   recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality = db_stats(ci)
   quality_s = ("%.0f%%" % (quality*100)) if quality else "Unknown"
@@ -684,10 +690,8 @@ def cmd_stats(bot, update):
                     'Users/groups active in the last 48 hours: %d/%d'
                     % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, quality_s, actusr, actgrp))
 
+@cmd_ratelimit
 def cmd_badword(bot, update):
-  if (cmd_limit_check(update.message.chat_id) > 100):
-    print('rate limited!')
-    return
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message.text
   msg_split = msg.split(' ', 1)
@@ -716,9 +720,6 @@ def thr_console():
 threads.start_thread(args=(downloadqueue, 'download'))
 threads.start_thread(target=thr_console, args=())
 
-if len(sys.argv) != 2:
-  raise Exception("Wrong number of arguments")
-Config.read(sys.argv[1])
 
 nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
 nn.run_thread()
@@ -752,6 +753,6 @@ dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
 dispatcher.add_handler(CommandHandler('badword', cmd_badword), 3)
 
 sticker_emojis = set(get_sticker_emojis())
-print("%d sticker emojis loaded" % len(sticker_emojis))
+logging.info("%d sticker emojis loaded" % len(sticker_emojis))
 
 updater.start_polling(timeout=60, read_latency=30)
