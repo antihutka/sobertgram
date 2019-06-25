@@ -18,6 +18,7 @@ import threads
 from httpnn import HTTPNN
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from util import retry
 
 convos = {}
 times = {}
@@ -68,6 +69,8 @@ def lookup_sticker_emoji(emoji):
     return emoji
   return None
 
+
+@retry(5)
 @with_cursor
 def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None):
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
@@ -80,10 +83,12 @@ def log(cur, conv, username, fromid, fromname, sent, text, original_message = No
     cur.execute("INSERT INTO `forwarded_from` (`id`, `from_user`) VALUES (LAST_INSERT_ID(), %s)", (fwd_from,))
   return rowid
 
+@retry(5)
 @with_cursor
 def log_cmd(cur, conv, username, fromname, cmd):
   cur.execute("INSERT INTO `commands` (`convid`, `from`, `chatname`, `command`) VALUES (%s, %s, %s, %s)", (conv, username, fromname, cmd))
 
+@retry(5)
 @with_cursor
 def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None):
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
@@ -104,14 +109,17 @@ def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_
     sticker_emojis.add(text)
   return rowid
 
+@retry(5)
 @with_cursor
 def log_add_msg_id(cur, db_id, msg_id):
   cur.execute("UPDATE `chat` SET `msg_id`=%s WHERE `id`=%s AND msg_id IS NULL", (msg_id, db_id))
 
+@retry(5)
 @with_cursor
 def log_file(cur, conv, username, chatname, ftype, fsize, attr, file_id):
   cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id))
 
+@retry(5)
 @with_cursor
 def log_status(cur, conv, username, chatname, updates):
   if not updates:
@@ -119,6 +127,7 @@ def log_status(cur, conv, username, chatname, updates):
   for u in updates:
     cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`) VALUES (%s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1]))
 
+@retry(5)
 @with_cursor
 def log_migration(cur, newid, oldid):
   try:
@@ -129,10 +138,12 @@ def log_migration(cur, newid, oldid):
     e = sys.exc_info()[0]
     print("Migration failed: %s" % e)
 
+@retry(5)
 @with_cursor
 def log_file_text(cur, fileid, texttype, filetext):
   cur.execute("REPLACE INTO `file_text` (`file_id`, `type`, `file_text`) VALUES (%s, %s, %s)", (fileid, texttype, filetext))
 
+@retry(5)
 @with_cursor
 def rand_sticker(cur, emoji = None):
   if emoji:
@@ -145,12 +156,14 @@ def rand_sticker(cur, emoji = None):
   row = cur.fetchone()
   return row
 
+@retry(5)
 @with_cursor
 def get_sticker_emojis(cur):
   cur.execute("SELECT DISTINCT `emoji` from `stickers` WHERE `freqmod` > 0")
   rows = cur.fetchall()
   return [x[0] for x in rows]
 
+@retry(5)
 @with_cursor
 def already_pqd(cur, txt):
   cur.execute("SELECT COUNT(*) FROM `pq` WHERE `message` = %s", (txt,))
@@ -159,6 +172,7 @@ def already_pqd(cur, txt):
     return True
   return False
 
+@retry(5)
 @with_cursor
 def db_stats(cur, convid):
   recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
@@ -172,27 +186,32 @@ def db_stats(cur, convid):
   quality = dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
   return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality
 
+@retry(5)
 @with_cursor
 def log_pq(cur, convid, userid, txt):
   cur.execute("INSERT INTO `pq` (`convid`, `userid`, `message`) VALUES (%s, %s, %s)", (convid, userid, txt))
 
+@retry(5)
 @with_cursor
 def pq_limit_check(cur, userid):
   cur.execute("SELECT COUNT(*) FROM pq WHERE userid=%s AND date > DATE_SUB(NOW(), INTERVAL 1 HOUR)", (userid,))
   res = cur.fetchone()[0]
   return res
 
+@retry(5)
 @with_cursor
 def cmd_limit_check(cur, convid):
   cur.execute("SELECT COUNT(*) FROM commands WHERE convid=%s AND date > DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND id > (SELECT MAX(id) - 1000 FROM commands)", (convid,))
   res = cur.fetchone()[0]
   return res
 
+@retry(5)
 @with_cursor
 def option_set(cur, convid, option, value):
   cur.execute("REPLACE INTO `options` (`convid`, `option`, `value`) VALUES (%s,%s, %s)", (convid, option, str(value)))
   options[(convid, option)] = value
 
+@retry(5)
 @with_cursor
 def option_get_raw(cur, convid, option):
   if (convid, option) in options:
@@ -219,6 +238,7 @@ def option_get_float(convid, option, def_u, def_g):
 
 badword_cache = {}
 
+@retry(5)
 @with_cursor
 def get_badwords(cur, convid):
   if convid in badword_cache:
@@ -228,11 +248,13 @@ def get_badwords(cur, convid):
   badword_cache[convid] = r
   return r
 
+@retry(5)
 @with_cursor
 def add_badword(cur, convid, badword, by):
   cur.execute("INSERT INTO `badwords` (`convid`, `badword`, `addedby`) VALUES (%s, %s, %s)", (convid, badword, by))
   badword_cache[convid].append(badword)
 
+@retry(5)
 @with_cursor
 def delete_badword(cur, convid, badword):
   cur.execute("DELETE FROM `badwords` WHERE `convid` = %s AND `badword` = %s", (convid, badword))
