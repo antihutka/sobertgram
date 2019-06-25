@@ -564,17 +564,6 @@ def cmd_ratelimit(inf):
   return outf
 
 @cmd_ratelimit
-def flushqueue(bot, update):
-  ci = update.message.chat_id
-  fro = update.message.from_user.username
-  logging.warning('%s/%d requested queue flush' % (fro, ci))
-  cmdreply(bot, ci, '<flush requested>')
-  for qci, rq in replyqueues.items():
-    logging.warning('flushing queue %d' % (qci,))
-    rq.join()
-  cmdreply(bot, ci, '<done>')
-
-@cmd_ratelimit
 def cmd_option_get(bot, update):
   ci = update.message.chat_id
   txt = update.message.text.split()
@@ -743,7 +732,6 @@ dispatcher.add_handler(MessageHandler(Filters.status_update, status), 2)
 
 dispatcher.add_handler(CommandHandler('start', start), 3)
 dispatcher.add_handler(CommandHandler('givesticker', givesticker), 3)
-dispatcher.add_handler(CommandHandler('flushqueue', flushqueue), 3)
 dispatcher.add_handler(CommandHandler('option_get', cmd_option_get), 3)
 dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
