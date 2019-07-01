@@ -1,7 +1,10 @@
 import asyncio
 import aiohttp
 import logging
+from util import aretry
 from threading import Thread, Event
+
+import random
 
 class HTTPNN:
   def __init__(self, url, keyprefix):
@@ -17,18 +20,26 @@ class HTTPNN:
   async def queued_for_key(self, key):
     return len(self.get_lock(key)._waiters)
 
+  @aretry(5)
+  async def put_(self, key, message):
+    async with self.client.post(self.url + "put", json={'key': self.keyprefix + ':' + key, 'text': message}) as response:
+      assert response.status == 200
+      rj = await response.json()
+
   async def put(self, key, message):
     async with self.get_lock(key):
-      async with self.client.post(self.url + "put", json={'key': self.keyprefix + ':' + key, 'text': message}) as response:
-        assert response.status == 200
-        rj = await response.json()
+      return await self.put_(key, message)
+
+  @aretry(5)
+  async def get_(self, key, bad_words):
+    async with self.client.post(self.url + 'get', json={'key': self.keyprefix + ':' + key, 'bad_words': bad_words}) as response:
+      assert response.status == 200
+      rj = await response.json()
+    return rj['text']
 
   async def get(self, key, bad_words = []):
     async with self.get_lock(key):
-      async with self.client.post(self.url + 'get', json={'key': self.keyprefix + ':' + key, 'bad_words': bad_words}) as response:
-        assert response.status == 200
-        rj = await response.json()
-    return rj['text']
+      return await self.get_(key, bad_words)
 
   async def initialize(self):
     self.client = aiohttp.ClientSession(loop = self.loop, timeout = aiohttp.ClientTimeout(900))
