@@ -79,26 +79,21 @@ def get_chatinfo_id(cur, chat):
     return None
   metadata = (chat.id, chat.username, chat.first_name, chat.last_name, getattr(chat, 'title', None))
   if metadata in chatinfo_cache:
-    print('cached result %d' % chatinfo_cache[metadata])
     return chatinfo_cache[metadata]
   cur.execute("SELECT chatinfo_id FROM chatinfo WHERE chat_id <=> %s AND username <=> %s AND first_name <=> %s AND last_name <=> %s AND title <=> %s FOR UPDATE", metadata)
   res = cur.fetchall()
   if res:
     cache_on_commit(cur, chatinfo_cache, metadata, res[0][0])
-    print('existing result %d' % res[0][0])
     return res[0][0]
   cur.execute("INSERT INTO chatinfo (chat_id, username, first_name, last_name, title) VALUES (%s, %s, %s, %s, %s)", metadata)
   rid = cur.lastrowid
   cache_on_commit(cur, chatinfo_cache, metadata, rid)
-  print('inserted result %d' % rid)
   return rid
 
 @retry(5)
 @with_cursor
 def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None):
-  print("convo: ", conversation, conversation.__dict__)
   chatinfo_id = get_chatinfo_id(cur, conversation)
-  print("user: ", user, user.__dict__)
   userinfo_id = get_chatinfo_id(cur, user)
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
@@ -112,13 +107,17 @@ def log(cur, conv, username, fromid, fromname, sent, text, original_message = No
 
 @retry(5)
 @with_cursor
-def log_cmd(cur, conv, username, fromname, cmd):
-  cur.execute("INSERT INTO `commands` (`convid`, `from`, `chatname`, `command`) VALUES (%s, %s, %s, %s)", (conv, username, fromname, cmd))
+def log_cmd(cur, conv, username, fromname, cmd, conversation = None, user = None):
+  chatinfo_id = get_chatinfo_id(cur, conversation)
+  userinfo_id = get_chatinfo_id(cur, user)
+  cur.execute("INSERT INTO `commands` (`convid`, `from`, `chatname`, `command`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromname, cmd, chatinfo_id, userinfo_id))
 
 @retry(5)
 @with_cursor
-def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None):
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
+def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None):
+  chatinfo_id = get_chatinfo_id(cur, conversation)
+  userinfo_id = get_chatinfo_id(cur, user)
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
   if reply_to_id:
@@ -143,16 +142,20 @@ def log_add_msg_id(cur, db_id, msg_id):
 
 @retry(5)
 @with_cursor
-def log_file(cur, conv, username, chatname, ftype, fsize, attr, file_id):
-  cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id))
+def log_file(cur, conv, username, chatname, ftype, fsize, attr, file_id, conversation=None, user=None):
+  chatinfo_id = get_chatinfo_id(cur, conversation)
+  userinfo_id = get_chatinfo_id(cur, user)
+  cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id, chatinfo_id, userinfo_id))
 
 @retry(5)
 @with_cursor
-def log_status(cur, conv, username, chatname, updates):
+def log_status(cur, conv, username, chatname, updates, conversation=None, user=None):
+  chatinfo_id = get_chatinfo_id(cur, conversation)
+  userinfo_id = get_chatinfo_id(cur, user)
   if not updates:
     return
   for u in updates:
-    cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`) VALUES (%s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1]))
+    cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1], chatinfo_id, userinfo_id))
 
 @retry(5)
 @with_cursor
@@ -344,7 +347,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
       rs = rand_sticker(msg)
       if rs:
         logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
-        dbid = log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond)
+        dbid = log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user)
         m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         log_add_msg_id(dbid, m.message_id)
         return
@@ -439,7 +442,8 @@ def sticker(bot, update):
   emo = st.emoji or ''
   logging.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
+  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None,
+    conversation=update.message.chat, user=update.message.from_user)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
@@ -454,7 +458,7 @@ def video(bot, update):
   size = vid.file_size
   logging.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'video', fid, fid + '.mp4')
-  log_file(ci, fro, fron, 'video', size, attr, fid)
+  log_file(ci, fro, fron, 'video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def document(bot, update):
   if not update.message:
@@ -469,7 +473,7 @@ def document(bot, update):
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
   logging.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'document', fid, fid + ' ' + name)
-  log_file(ci, fro, fron, 'document', size, attr, fid)
+  log_file(ci, fro, fron, 'document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def audio(bot, update):
   if not update.message:
@@ -484,7 +488,7 @@ def audio(bot, update):
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   logging.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
-  log_file(ci, fro, fron, 'audio', size, attr, fid)
+  log_file(ci, fro, fron, 'audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def photo(bot, update):
   if not update.message:
@@ -523,7 +527,7 @@ def photo(bot, update):
         sendreply(bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
-  log_file(ci, fro, fron, 'photo', maxsize, attr, fid)
+  log_file(ci, fro, fron, 'photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def voice(bot, update):
   ci, fro, fron, froi = cifrofron(update)
@@ -533,7 +537,7 @@ def voice(bot, update):
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
   logging.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(bot, 'voice', fid, fid + '.opus')
-  log_file(ci, fro, fron, 'voice', size, attr, fid)
+  log_file(ci, fro, fron, 'voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def status(bot, update):
   msg = update.message
@@ -556,7 +560,7 @@ def status(bot, update):
     log_migration(ci, msg.migrate_from_chat_id)
   for u in upd:
     logging.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
-  log_status(ci, fro, fron, upd)
+  log_status(ci, fro, fron, upd, conversation=update.message.chat, user=update.message.from_user)
 
 def cmdreply(bot, ci, text):
   logging.info('=> %s' % text)
@@ -649,7 +653,7 @@ def logcmd(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
-  log_cmd(ci, fro, fron, txt)
+  log_cmd(ci, fro, fron, txt, conversation = update.message.chat, user = update.message.from_user)
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
