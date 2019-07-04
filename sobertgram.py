@@ -18,7 +18,7 @@ import threads
 from httpnn import HTTPNN
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from util import retry
+from util import retry, inqueue
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
@@ -29,6 +29,7 @@ times = {}
 known_stickers = set()
 downloaded_files = set()
 downloadqueue = Queue(maxsize=1024)
+logqueue = Queue()
 options = {}
 sticker_emojis = None
 pqed_messages = set()
@@ -90,9 +91,10 @@ def get_chatinfo_id(cur, chat):
   cache_on_commit(cur, chatinfo_cache, metadata, rid)
   return rid
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
-def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None):
+def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None, rowid_out = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id, chatinfo_id, userinfo_id))
@@ -103,18 +105,22 @@ def log(cur, conv, username, fromid, fromname, sent, text, original_message = No
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
   if fwd_from:
     cur.execute("INSERT INTO `forwarded_from` (`id`, `from_user`) VALUES (LAST_INSERT_ID(), %s)", (fwd_from,))
+  if rowid_out is not None:
+    rowid_out.append(rowid)
   return rowid
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_cmd(cur, conv, username, fromname, cmd, conversation = None, user = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   cur.execute("INSERT INTO `commands` (`convid`, `from`, `chatname`, `command`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s)", (conv, username, fromname, cmd, chatinfo_id, userinfo_id))
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
-def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None):
+def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None, rowid_out = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id, chatinfo_id, userinfo_id))
@@ -133,21 +139,28 @@ def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_
   if file_id not in known_stickers:
     known_stickers.add(file_id)
     sticker_emojis.add(text)
+  if rowid_out is not None:
+    rowid_out.append(rowid)
   return rowid
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_add_msg_id(cur, db_id, msg_id):
+  if isinstance(msg_id, list) and msg_id:
+    msg_id = msg_id[0]
   cur.execute("UPDATE `chat` SET `msg_id`=%s WHERE `id`=%s AND msg_id IS NULL", (msg_id, db_id))
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_file(cur, conv, username, chatname, ftype, fsize, attr, file_id, conversation=None, user=None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   cur.execute("INSERT INTO `chat_files` (`convid`, `from`, `chatname`, `type`, `file_size`, `attr`, `file_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, ftype, fsize, attr, file_id, chatinfo_id, userinfo_id))
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_status(cur, conv, username, chatname, updates, conversation=None, user=None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
@@ -157,7 +170,8 @@ def log_status(cur, conv, username, chatname, updates, conversation=None, user=N
   for u in updates:
     cur.execute("INSERT INTO `status_updates` (`convid`, `from`, `chatname`, `type`, `value`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, chatname, u[0], u[1], chatinfo_id, userinfo_id))
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_migration(cur, newid, oldid):
   try:
@@ -167,7 +181,8 @@ def log_migration(cur, newid, oldid):
   except:
     logger.exception("Migration failed:")
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_file_text(cur, fileid, texttype, filetext):
   cur.execute("REPLACE INTO `file_text` (`file_id`, `type`, `file_text`) VALUES (%s, %s, %s)", (fileid, texttype, filetext))
@@ -215,7 +230,8 @@ def db_stats(cur, convid):
   quality = dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
   return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality
 
-@retry(5)
+@inqueue(logqueue)
+@retry(10)
 @with_cursor
 def log_pq(cur, convid, userid, txt):
   cur.execute("INSERT INTO `pq` (`convid`, `userid`, `message`) VALUES (%s, %s, %s)", (convid, userid, txt))
@@ -347,11 +363,13 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
       rs = rand_sticker(msg)
       if rs:
         logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
-        dbid = log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user)
+        dbid = []
+        log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
         m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         log_add_msg_id(dbid, m.message_id)
         return
-    dbid = log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user)
+    dbid = []
+    log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
     m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
     log_add_msg_id(dbid, m.message_id)
   get_cb(rf, ci, badwords)
@@ -734,6 +752,7 @@ def thr_console():
     pass
 
 threads.start_thread(args=(downloadqueue, 'download'))
+threads.start_thread(args=(logqueue, 'dblogger'))
 threads.start_thread(target=thr_console, args=())
 
 

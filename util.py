@@ -17,6 +17,8 @@ def retry(retry_count):
             logging.exception('Exception, retrying in %d seconds' % delay)
             time.sleep(delay)
             delay = delay * 2 + random.randint(1,2)
+            if delay > 60:
+              delay = 60
           else:
             logging.exception('Exception, giving up')
             raise
@@ -37,8 +39,21 @@ def aretry(retry_count):
             logging.exception('Exception, retrying in %d seconds' % delay)
             await asyncio.sleep(delay)
             delay = delay * 2 + random.randint(1,2)
+            if delay > 60:
+              delay = 60
           else:
             logging.exception('Exception, giving up')
             raise
     return df
+  return dec
+
+def inqueue(queue):
+  def dec(f):
+    def wrapped(*args, **kwargs):
+      def queuedjob():
+        f(*args, **kwargs)
+      queue.put(queuedjob)
+      if queue.qsize() > 100:
+        logging.warning('Queue size: %d' % queue.qsize())
+    return wrapped
   return dec
