@@ -13,7 +13,7 @@ import unicodedata
 import subprocess
 
 from configuration import Config
-from database import dbcur_queryone, with_cursor
+from database import dbcur_queryone, with_cursor, cache_on_commit
 import threads
 from httpnn import HTTPNN
 import asyncio
@@ -73,11 +73,34 @@ def lookup_sticker_emoji(emoji):
     return emoji
   return None
 
+chatinfo_cache = {}
+def get_chatinfo_id(cur, chat):
+  if chat is None:
+    return None
+  metadata = (chat.id, chat.username, chat.first_name, chat.last_name, getattr(chat, 'title', None))
+  if metadata in chatinfo_cache:
+    print('cached result %d' % chatinfo_cache[metadata])
+    return chatinfo_cache[metadata]
+  cur.execute("SELECT chatinfo_id FROM chatinfo WHERE chat_id <=> %s AND username <=> %s AND first_name <=> %s AND last_name <=> %s AND title <=> %s FOR UPDATE", metadata)
+  res = cur.fetchall()
+  if res:
+    cache_on_commit(cur, chatinfo_cache, metadata, res[0][0])
+    print('existing result %d' % res[0][0])
+    return res[0][0]
+  cur.execute("INSERT INTO chatinfo (chat_id, username, first_name, last_name, title) VALUES (%s, %s, %s, %s, %s)", metadata)
+  rid = cur.lastrowid
+  cache_on_commit(cur, chatinfo_cache, metadata, rid)
+  print('inserted result %d' % rid)
+  return rid
 
 @retry(5)
 @with_cursor
-def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None):
-  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id))
+def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None):
+  print("convo: ", conversation, conversation.__dict__)
+  chatinfo_id = get_chatinfo_id(cur, conversation)
+  print("user: ", user, user.__dict__)
+  userinfo_id = get_chatinfo_id(cur, user)
+  cur.execute("INSERT INTO `chat` (`convid`, `from`, `fromid`, `chatname`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)", (conv, username, fromid, fromname, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   if original_message:
     cur.execute("INSERT INTO `chat_original` (`id`, `original_text`) VALUES (LAST_INSERT_ID(), %s)", (original_message,))
@@ -294,7 +317,7 @@ def can_send_sticker(bot, ci):
     return False
   return True
 
-def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
+def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
   if asyncio.run_coroutine_threadsafe(nn.queued_for_key(str(ci)), nn.loop).result() > 16:
     logger.warning('Warning: reply queue full, dropping reply')
     return
@@ -325,7 +348,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None):
         m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         log_add_msg_id(dbid, m.message_id)
         return
-    dbid = log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond)
+    dbid = log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user)
     m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
     log_add_msg_id(dbid, m.message_id)
   get_cb(rf, ci, badwords)
@@ -357,10 +380,10 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
-def getmessage(bot, ci, fro, froi, fron, txt, msg_id, reply_to_id, fwd_from):
+def getmessage(bot, ci, fro, froi, fron, txt, msg_id, reply_to_id, fwd_from, conversation, user):
   logging.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
-  log(ci, fro, froi, fron, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, fwd_from = fwd_from)
+  log(ci, fro, froi, fron, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, fwd_from = fwd_from, conversation=conversation, user=user)
 
 def cifrofron(update):
   ci = update.message.chat_id
@@ -388,22 +411,22 @@ def msg(bot, update):
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
+  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None, conversation = update.message.chat, user = update.message.from_user)
   if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
+    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 def start(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   logging.info('%s/%d /start' % (fro, ci))
-  sendreply(bot, ci, fro, froi, fron)
+  sendreply(bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
 def me(bot, update):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
-  sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
+  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None, conversation = update.message.chat, user = update.message.from_user)
+  sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 def sticker(bot, update):
   if not update.message:
@@ -418,7 +441,7 @@ def sticker(bot, update):
   put(ci, emo)
   log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
   if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id)
+    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
 def video(bot, update):
@@ -481,9 +504,9 @@ def photo(bot, update):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None)
+    getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None, conversation = update.message.chat, user = update.message.from_user)
     if should_reply(bot, update.message, ci, txt):
-      sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id)
+      sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logging.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   def process_photo(f):
     logging.info('OCR running on %s' % f)
@@ -497,7 +520,7 @@ def photo(bot, update):
       put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
         logging.info('sending reply')
-        sendreply(bot, ci, fro, froi, fron, replyto=update.message.message_id)
+        sendreply(bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
   log_file(ci, fro, fron, 'photo', maxsize, attr, fid)

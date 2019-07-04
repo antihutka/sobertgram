@@ -1,4 +1,5 @@
 import MySQLdb
+from weakref import WeakKeyDictionary
 
 from configuration import Config
 
@@ -15,6 +16,8 @@ def dbcur_queryone(cur, query, args = (), default = None):
     return row[0]
   return default
 
+cursor_oncommit = WeakKeyDictionary()
+
 def with_cursor(infun):
   def outfun(*args, **kwargs):
     db = MySQLdb.connect(
@@ -29,7 +32,15 @@ def with_cursor(infun):
         cur.execute('SET NAMES utf8mb4')
         ret = infun(cur, *args, **kwargs)
         db.commit()
+        if cur in cursor_oncommit:
+          for act in cursor_oncommit[cur]:
+            act[0][act[1]] = act[2]
         return ret
     finally:
       db.close()
   return outfun
+
+def cache_on_commit(cursor, cachedict, cachekey, cacheval):
+  if cursor not in cursor_oncommit:
+    cursor_oncommit[cursor] = []
+  cursor_oncommit[cursor].append((cachedict, cachekey, cacheval))
