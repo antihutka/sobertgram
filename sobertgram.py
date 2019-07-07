@@ -74,21 +74,31 @@ def lookup_sticker_emoji(emoji):
     return emoji
   return None
 
+chatinfo_last = {}
+def update_chatinfo_current(cur, convid, chatinfo_id):
+  if (convid not in chatinfo_last) or (chatinfo_last[convid] != chatinfo_id):
+    logger.info("Updating chatinfo_current: %d -> %d" % (convid, chatinfo_id))
+    cur.execute("REPLACE INTO chatinfo_current (convid, chatinfo_id) VALUES (%s, %s)", (convid, chatinfo_id))
+    cache_on_commit(cur, chatinfo_last, convid, chatinfo_id)
+
 chatinfo_cache = {}
 def get_chatinfo_id(cur, chat):
   if chat is None:
     return None
   metadata = (chat.id, chat.username, chat.first_name, chat.last_name, getattr(chat, 'title', None))
   if metadata in chatinfo_cache:
+    update_chatinfo_current(cur, chat.id, chatinfo_cache[metadata])
     return chatinfo_cache[metadata]
   cur.execute("SELECT chatinfo_id FROM chatinfo WHERE chat_id <=> %s AND username <=> %s AND first_name <=> %s AND last_name <=> %s AND title <=> %s FOR UPDATE", metadata)
   res = cur.fetchall()
   if res:
     cache_on_commit(cur, chatinfo_cache, metadata, res[0][0])
+    update_chatinfo_current(cur, chat.id, res[0][0])
     return res[0][0]
   cur.execute("INSERT INTO chatinfo (chat_id, username, first_name, last_name, title) VALUES (%s, %s, %s, %s, %s)", metadata)
   rid = cur.lastrowid
   cache_on_commit(cur, chatinfo_cache, metadata, rid)
+  update_chatinfo_current(cur, chat.id, rid)
   return rid
 
 @inqueue(logqueue)
@@ -306,8 +316,9 @@ def delete_badword(cur, convid, badword):
   badword_cache[convid].remove(badword)
 
 def setup_logging():
+  verbose = Config.getboolean('Logging', 'VerboseStdout')
   console = logging.StreamHandler()
-  console.setLevel(logging.WARNING)
+  console.setLevel(logging.INFO if verbose else logging.WARNING)
   logfile = logging.FileHandler(Config.get('Logging', 'Logfile'))
   logfile.setLevel(logging.INFO)
   logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, handlers = [console, logfile])
