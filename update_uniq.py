@@ -43,7 +43,7 @@ def update_step(db, cur):
   for i in chats_to_update:
     print("Chat: %16d New: %6d / %6d updated: %6d minutes ago score: %4.2f uniq: %.3f %s" % i)
   convid = chats_to_update[0][0]
-  chatname = chats_to_update[0][4]
+  chatname = chats_to_update[0][6]
   print("Updating stats for %d %s" % (convid, chatname))
   cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
     "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
@@ -53,7 +53,7 @@ def update_step(db, cur):
   cur.execute("SELECT COUNT(*) FROM chat WHERE sent=0 AND convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
   msgcount_v = cur.fetchone()[0]
   db.commit()
-  print("New uniqueness=%.3f count=%d countv=%d" % (uniqueness, msgcount, msgcount_v))
+  print("Updated uniqueness of chat %s from %.3f to %.3f count=%d countv=%d" % (chatname, chats_to_update[0][5], uniqueness, msgcount, msgcount_v))
   cur.execute("UPDATE chat_uniqueness SET "
     "uniqueness=%s, "
     "last_count=%s, "
