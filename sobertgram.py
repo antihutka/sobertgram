@@ -30,6 +30,7 @@ known_stickers = set()
 downloaded_files = set()
 downloadqueue = Queue(maxsize=1024)
 logqueue = Queue()
+cmdqueue = Queue()
 options = {}
 sticker_emojis = None
 pqed_messages = set()
@@ -655,6 +656,7 @@ def admin_check(bot, convid, userid):
     return True
   return user_is_admin(bot, convid, userid)
 
+@inqueue(cmdqueue)
 @cmd_ratelimit
 def cmd_option_set(bot, update):
   ci = update.message.chat_id
@@ -698,6 +700,7 @@ Commands:
 def cmd_help(bot, update):
   cmdreply(bot, update.message.chat_id, helpstring)
 
+@inqueue(cmdqueue)
 @cmd_ratelimit
 def cmd_pq(bot, update):
   ci, fro, fron, froi = cifrofron(update)
@@ -725,6 +728,7 @@ def cmd_pq(bot, update):
   pqed_messages.add(replid)
   log_pq(ci, froi, repl.text)
 
+@inqueue(cmdqueue)
 @cmd_ratelimit
 def cmd_stats(bot, update):
   ci, fro, fron, froi = cifrofron(update)
@@ -764,6 +768,7 @@ def thr_console():
 
 threads.start_thread(args=(downloadqueue, 'download'))
 threads.start_thread(args=(logqueue, 'dblogger'))
+threads.start_thread(args=(cmdqueue, 'commands'))
 threads.start_thread(target=thr_console, args=())
 
 
