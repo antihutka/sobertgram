@@ -105,17 +105,19 @@ def get_chatinfo_id(cur, chat):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None, rowid_out = None):
+def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
+  fwduser_id = get_chatinfo_id(cur, fwduser)
+  fwdchat_id = get_chatinfo_id(cur, fwdchat)
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   if original_message:
     cur.execute("INSERT INTO `chat_original` (`id`, `original_text`) VALUES (LAST_INSERT_ID(), %s)", (original_message,))
   if reply_to_id:
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
-  if fwd_from:
-    cur.execute("INSERT INTO `forwarded_from` (`id`, `from_user`) VALUES (LAST_INSERT_ID(), %s)", (fwd_from,))
+  if fwduser or fwdchat:
+    cur.execute("INSERT INTO `forwarded_from` (`id`, `fwd_userinfo_id`, `fwd_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (fwduser_id, fwdchat_id))
   if rowid_out is not None:
     rowid_out.append(rowid)
   return rowid
@@ -131,16 +133,18 @@ def log_cmd(cur, conv, username, fromname, cmd, conversation = None, user = None
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, fwd_from = None, conversation=None, user=None, rowid_out = None):
+def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
+  fwduser_id = get_chatinfo_id(cur, fwduser)
+  fwdchat_id = get_chatinfo_id(cur, fwdchat)
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
   if reply_to_id:
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
-  if fwd_from:
-    cur.execute("INSERT INTO `forwarded_from` (`id`, `from_user`) VALUES (LAST_INSERT_ID(), %s)", (fwd_from,))
+  if fwduser or fwdchat:
+    cur.execute("INSERT INTO `forwarded_from` (`id`, `fwd_userinfo_id`, `fwd_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (fwduser_id, fwdchat_id))
   if file_id not in known_stickers:
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
     (exists,) = cur.fetchone()
@@ -413,10 +417,17 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
-def getmessage(bot, ci, fro, froi, fron, txt, msg_id, reply_to_id, fwd_from, conversation, user):
+def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   logging.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
-  log(ci, fro, froi, fron, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, fwd_from = fwd_from, conversation=conversation, user=user)
+
+  reply_to_id = message.reply_to_message.message_id if message.reply_to_message else None
+  conversation = message.chat
+  user = message.from_user
+  fwduser = message.forward_from
+  fwdchat = message.forward_from_chat
+
+  log(ci, fro, froi, fron, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
 
 def cifrofron(update):
   ci = update.message.chat_id
@@ -444,7 +455,7 @@ def msg(bot, update):
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None, conversation = update.message.chat, user = update.message.from_user)
+  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
@@ -458,7 +469,7 @@ def me(bot, update):
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None, conversation = update.message.chat, user = update.message.from_user)
+  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 def sticker(bot, update):
@@ -472,7 +483,8 @@ def sticker(bot, update):
   emo = st.emoji or ''
   logging.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None,
+  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
+    fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(bot, update.message, ci):
     sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
@@ -538,7 +550,7 @@ def photo(bot, update):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message.reply_to_message.message_id if update.message.reply_to_message else None, fwd_from = message.forward_from.id if message.forward_from else None, conversation = update.message.chat, user = update.message.from_user)
+    getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
     if should_reply(bot, update.message, ci, txt):
       sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logging.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
