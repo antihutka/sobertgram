@@ -183,7 +183,8 @@ def log_status(cur, conv, username, chatname, updates, conversation=None, user=N
   if not updates:
     return
   for u in updates:
-    cur.execute("INSERT INTO `status_updates` (`convid`, `type`, `value`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s)", (conv, u[0], u[1], chatinfo_id, userinfo_id))
+    member_id = get_chatinfo_id(cur, u[2])
+    cur.execute("INSERT INTO `status_updates` (`convid`, `type`, `value`, chatinfo_id, userinfo_id, member_id) VALUES (%s, %s, %s, %s, %s, %s)", (conv, u[0], u[1], chatinfo_id, userinfo_id, member_id))
 
 @inqueue(logqueue)
 @retry(10)
@@ -601,18 +602,18 @@ def status(bot, update):
   upd = []
   if msg.new_chat_members:
     for mmb in msg.new_chat_members:
-      upd.append(('new_member', str(mmb.id) + ' ' + user_name(mmb)))
+      upd.append(('new_member', str(mmb.id) + ' ' + user_name(mmb), mmb))
   if msg.left_chat_member:
     mmb = msg.left_chat_member
-    upd.append(('left_member', str(mmb.id) + ' ' + user_name(mmb)))
+    upd.append(('left_member', str(mmb.id) + ' ' + user_name(mmb), mmb))
   if msg.new_chat_title:
-    upd.append(('new_title', msg.new_chat_title))
+    upd.append(('new_title', msg.new_chat_title, None))
   if msg.group_chat_created:
-    upd.append(('group_created', ''))
+    upd.append(('group_created', '', None))
   if msg.supergroup_chat_created:
-    upd.append(('supergroup_created', ''))
+    upd.append(('supergroup_created', '', None))
   if msg.migrate_from_chat_id:
-    upd.append(('migrate_from_chat_id', str(msg.migrate_from_chat_id)))
+    upd.append(('migrate_from_chat_id', str(msg.migrate_from_chat_id), None))
     log_migration(ci, msg.migrate_from_chat_id)
   for u in upd:
     logging.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
