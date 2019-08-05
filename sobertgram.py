@@ -381,12 +381,26 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
         logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = []
         log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-        m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
+        try:
+          m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
+        except telegram.error.BadRequest:
+          if reply_to:
+            logger.exception("Can't send reply, trying without")
+            m = bot.sendSticker(chat_id=ci, sticker=rs[0])
+          else:
+            raise
         log_add_msg_id(dbid, m.message_id)
         return
     dbid = []
     log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-    m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
+    try:
+      m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
+    except telegram.error.BadRequest:
+      if reply_to:
+        logger.exception("Can't send reply, trying without")
+        m = bot.sendMessage(chat_id=ci, text=msg)
+      else:
+        raise
     log_add_msg_id(dbid, m.message_id)
   get_cb(rf, ci, badwords)
 
