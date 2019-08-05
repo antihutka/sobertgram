@@ -70,8 +70,8 @@ def update_step(db, cur):
     varsleep = varsleep - 1
   sleeptime = (elaps * 10 + varsleep) / max(0.25, chats_to_update[0][4])
   #print("Done updating stats for %d %s (took %.3f) (sleeping for %6.3f)" % (convid, chatname, elaps, sleeptime))
-  print("Updated %s from %.3f to %.3f cnt=%d/%d score %.3f took %.3f slp %6.3f" %
-       (chatname, chats_to_update[0][5], uniqueness, msgcount_v, msgcount, chats_to_update[0][4], elaps, sleeptime))
+  print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f took %.3f slp %6.3f" %
+       (chatname, chats_to_update[0][5], uniqueness, float(uniqueness) - chats_to_update[0][5], msgcount_v, msgcount, chats_to_update[0][4], elaps, sleeptime))
   return sleeptime
 
 while True:
