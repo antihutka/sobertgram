@@ -321,6 +321,11 @@ def delete_badword(cur, convid, badword):
   cur.execute("DELETE FROM `badwords` WHERE `convid` = %s AND `badword` = %s", (convid, badword))
   badword_cache[convid].remove(badword)
 
+@with_cursor
+def db_get_photo(cur, fid):
+  cur.execute("SELECT COUNT(*) FROM chat_files WHERE type = 'photo' AND file_id = %s", (fid,))
+  return cur.fetchone()[0]
+
 def setup_logging():
   verbose = Config.getboolean('Logging', 'VerboseStdout')
   console = logging.StreamHandler()
@@ -514,7 +519,8 @@ def video(bot, update):
   attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
   size = vid.file_size
   logging.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'video', fid, fid + '.mp4')
+  if (Config.getboolean('Download', 'Video', fallback=True)):
+    download_file(bot, 'video', fid, fid + '.mp4')
   log_file(ci, fro, fron, 'video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def document(bot, update):
@@ -529,7 +535,8 @@ def document(bot, update):
     name = '_unnamed_.mp4'
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
   logging.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'document', fid, fid + ' ' + name)
+  if (Config.getboolean('Download', 'Document', fallback=True)):
+    download_file(bot, 'document', fid, fid + ' ' + name)
   log_file(ci, fro, fron, 'document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def audio(bot, update):
@@ -585,6 +592,15 @@ def photo(bot, update):
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
   log_file(ci, fro, fron, 'photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+
+def cmd_download_photo(bot, update):
+  if not update.message:
+    return
+  fid = update.message.text.split(' ')[1]
+  if db_get_photo(fid):
+    download_file(bot, 'photo', fid, fid + '.jpg')
+  else:
+    logger.warning('Photo not in DB')
 
 def voice(bot, update):
   ci, fro, fron, froi = cifrofron(update)
@@ -828,6 +844,7 @@ dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
 dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
 dispatcher.add_handler(CommandHandler('badword', cmd_badword), 3)
+dispatcher.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
 
 sticker_emojis = set(get_sticker_emojis())
 logging.info("%d sticker emojis loaded" % len(sticker_emojis))
