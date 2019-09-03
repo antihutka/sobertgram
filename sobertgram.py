@@ -389,7 +389,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
         log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
         try:
           m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
-        except telegram.error.BadRequest:
+        except Exception:
           if reply_to:
             logger.exception("Can't send reply, trying without")
             m = bot.sendSticker(chat_id=ci, sticker=rs[0])
@@ -401,7 +401,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
     try:
       m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
-    except telegram.error.BadRequest:
+    except Exception:
       if reply_to:
         logger.exception("Can't send reply, trying without")
         m = bot.sendMessage(chat_id=ci, text=msg)
