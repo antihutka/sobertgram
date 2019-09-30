@@ -42,7 +42,7 @@ class HTTPNN:
       return await self.get_(key, bad_words)
 
   async def initialize(self):
-    self.client = aiohttp.ClientSession(loop = self.loop, timeout = aiohttp.ClientTimeout(900))
+    self.client = aiohttp.ClientSession(loop = self.loop, timeout = aiohttp.ClientTimeout(1800))
 
   async def consume_queue(self):
     while True:
