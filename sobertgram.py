@@ -735,13 +735,13 @@ Commands:
 /option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. Defaults to 0 in groups.
 /option_set admin_only <0|1> - when set to 1, only admins can change options and bad words
 /badword bad_word - add or remove bad_word from the per channel bad word list. Lists bad words when used without an argument.
-/pq - forward message to @StuffSobertSays
+/pq - forward message to %s
 /stats - print group/user stats
 """
 
 @cmd_ratelimit
 def cmd_help(bot, update):
-  cmdreply(bot, update.message.chat_id, helpstring)
+  cmdreply(bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
 
 @inqueue(cmdqueue)
 @cmd_ratelimit
