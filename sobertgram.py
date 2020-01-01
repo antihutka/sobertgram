@@ -1,5 +1,5 @@
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler
-from telegram import ChatAction
+from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
+from telegram import ChatAction, Update
 import logging
 import socket
 import re
@@ -468,31 +468,31 @@ def should_reply(bot, msg, ci, txt = None):
   rp = option_get_float(ci, 'reply_prob', 1, 0.02)
   return (uniform(0, 1) < rp)
 
-def msg(bot, update):
+def msg(update: Update, context: CallbackContext):
   if not update.message:
     return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-  if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+  if should_reply(context.bot, update.message, ci):
+    sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
-def start(bot, update):
+def start(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   logging.info('%s/%d /start' % (fro, ci))
-  sendreply(bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
+  sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
-def me(bot, update):
+def me(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-  sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+  sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
-def sticker(bot, update):
+def sticker(update: Update, context: CallbackContext):
   if not update.message:
     return
   ci, fro, fron, froi = cifrofron(update)
@@ -506,11 +506,11 @@ def sticker(bot, update):
   log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user)
-  if should_reply(bot, update.message, ci):
-    sendreply(bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-  download_file(bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
+  if should_reply(context.bot, update.message, ci):
+    sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  download_file(context.bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
-def video(bot, update):
+def video(update: Update, context: CallbackContext):
   if not update.message:
     return
   ci, fro, fron, froi = cifrofron(update)
@@ -520,10 +520,10 @@ def video(bot, update):
   size = vid.file_size
   logging.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Video', fallback=True)):
-    download_file(bot, 'video', fid, fid + '.mp4')
+    download_file(context.bot, 'video', fid, fid + '.mp4')
   log_file(ci, fro, fron, 'video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
-def document(bot, update):
+def document(update: Update, context: CallbackContext):
   if not update.message:
     return
   ci, fro, fron, froi = cifrofron(update)
@@ -536,10 +536,10 @@ def document(bot, update):
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
   logging.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Document', fallback=True)):
-    download_file(bot, 'document', fid, fid + ' ' + name)
+    download_file(context.bot, 'document', fid, fid + ' ' + name)
   log_file(ci, fro, fron, 'document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
-def audio(bot, update):
+def audio(update: Update, context: CallbackContext):
   if not update.message:
     return
   ci, fro, fron, froi = cifrofron(update)
@@ -551,10 +551,10 @@ def audio(bot, update):
     ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   logging.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
+  download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
   log_file(ci, fro, fron, 'audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
-def photo(bot, update):
+def photo(update: Update, context: CallbackContext):
   if not update.message:
     return
   ci, fro, fron, froi = cifrofron(update)
@@ -572,9 +572,9 @@ def photo(bot, update):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    getmessage(bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-    if should_reply(bot, update.message, ci, txt):
-      sendreply(bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+    getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+    if should_reply(context.bot, update.message, ci, txt):
+      sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logging.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   def process_photo(f):
     logging.info('OCR running on %s' % f)
@@ -584,35 +584,35 @@ def photo(bot, update):
     if ocrtext == "":
       return
     log_file_text(fid, 'ocr', ocrtext)
-    def process_photo_reply(_bot, _job):
+    def process_photo_reply(_context):
       put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
         logging.info('sending reply')
-        sendreply(bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+        sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
-  download_file(bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
+  download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
   log_file(ci, fro, fron, 'photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
-def cmd_download_photo(bot, update):
+def cmd_download_photo(update: Update, context: CallbackContext):
   if not update.message:
     return
   fid = update.message.text.split(' ')[1]
   if db_get_photo(fid):
-    download_file(bot, 'photo', fid, fid + '.jpg')
+    download_file(context.bot, 'photo', fid, fid + '.jpg')
   else:
     logger.warning('Photo not in DB')
 
-def voice(bot, update):
+def voice(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   voi = update.message.voice
   fid = voi.file_id
   size = voi.file_size
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
   logging.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(bot, 'voice', fid, fid + '.opus')
+  download_file(context.bot, 'voice', fid, fid + '.opus')
   log_file(ci, fro, fron, 'voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
-def status(bot, update):
+def status(update: Update, context: CallbackContext):
   msg = update.message
   ci, fro, fron, froi = cifrofron(update)
   upd = []
@@ -640,7 +640,7 @@ def cmdreply(bot, ci, text):
   msg = bot.sendMessage(chat_id=ci, text=text)
   command_replies.add(msg.message_id)
 
-def givesticker(bot, update):
+def givesticker(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   foremo = None
   cmd = update.message.text
@@ -649,33 +649,33 @@ def givesticker(bot, update):
     foremo = m.group(1).strip()
   rs = rand_sticker(foremo)
   if not rs:
-    cmdreply(bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
+    cmdreply(context.bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis))))
   else:
     fid, emo, set = rs
     logging.info('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
-    bot.sendSticker(chat_id=ci, sticker=fid)
+    context.bot.sendSticker(chat_id=ci, sticker=fid)
 
 def cmd_ratelimit(inf):
-  def outf(bot, update, *args, **kwargs):
+  def outf(update: Update, context: CallbackContext):
     if (cmd_limit_check(update.message.chat_id) > 100):
       logging.warning('rate limited!')
       return
-    inf(bot, update, *args, **kwargs)
+    inf(update, context)
   return outf
 
 @cmd_ratelimit
-def cmd_option_get(bot, update):
+def cmd_option_get(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 2):
-    cmdreply(bot, ci, '< invalid syntax >')
+    cmdreply(context.bot, ci, '< invalid syntax >')
     return
   opt = txt[1]
   val = option_get_raw(ci, opt)
   if val == None:
-    cmdreply(bot, ci, '<option %s not set>' % (opt,))
+    cmdreply(context.bot, ci, '<option %s not set>' % (opt,))
   else:
-    cmdreply(bot, ci, '<option %s is set to %s>' % (opt, val))
+    cmdreply(context.bot, ci, '<option %s is set to %s>' % (opt, val))
 
 def option_valid(o, v):
   if o == 'sticker_prob' or o == 'reply_prob' or o == 'admin_only':
@@ -701,29 +701,29 @@ def admin_check(bot, convid, userid):
 
 @inqueue(cmdqueue)
 @cmd_ratelimit
-def cmd_option_set(bot, update):
+def cmd_option_set(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
-    cmdreply(bot, ci, '< invalid syntax, use /option_set <option> <value> >')
+    cmdreply(context.bot, ci, '< invalid syntax, use /option_set <option> <value> >')
     return
-  if not admin_check(bot, ci, update.message.from_user.id):
-     cmdreply(bot, ci, '< you are not allowed to use this command >')
+  if not admin_check(context.bot, ci, update.message.from_user.id):
+     cmdreply(context.bot, ci, '< you are not allowed to use this command >')
      return
   opt = txt[1]
   val = txt[2]
   if option_valid(opt, val):
     option_set(ci, opt, val)
-    cmdreply(bot, ci, '<option %s set to %s>' % (opt, val))
+    cmdreply(context.bot, ci, '<option %s set to %s>' % (opt, val))
   else:
-    cmdreply(bot, ci, '<invalid option or value>')
+    cmdreply(context.bot, ci, '<invalid option or value>')
 
-def cmd_option_flush(bot, update):
+def cmd_option_flush(update: Update, context: CallbackContext):
   options.clear()
   badword_cache.clear()
-  cmdreply(bot, update.message.chat_id, '<done>')
+  cmdreply(context.bot, update.message.chat_id, '<done>')
 
-def logcmd(bot, update):
+def logcmd(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
@@ -740,70 +740,70 @@ Commands:
 """
 
 @cmd_ratelimit
-def cmd_help(bot, update):
-  cmdreply(bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
+def cmd_help(update: Update, context: CallbackContext):
+  cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
 
 @inqueue(cmdqueue)
 @cmd_ratelimit
-def cmd_pq(bot, update):
+def cmd_pq(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message
-  if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != bot.id):
-    cmdreply(bot, ci, '<send that as a reply to my message!>')
+  if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != context.bot.id):
+    cmdreply(context.bot, ci, '<send that as a reply to my message!>')
     return
 
   repl = msg.reply_to_message
   replid = repl.message_id
 
   if (repl.sticker or not repl.text):
-    cmdreply(bot, ci, '<only regular text messages are supported>')
+    cmdreply(context.bot, ci, '<only regular text messages are supported>')
     return
   if (replid in pqed_messages) or (already_pqd(repl.text)):
-    cmdreply(bot, ci, '<message already forwarded>')
+    cmdreply(context.bot, ci, '<message already forwarded>')
     return
   if replid in command_replies:
-    cmdreply(bot, ci, '<that is a silly thing to forward!>')
+    cmdreply(context.bot, ci, '<that is a silly thing to forward!>')
     return
   if pq_limit_check(froi) >= 5:
-    cmdreply(bot, ci, '<slow down a little!>')
+    cmdreply(context.bot, ci, '<slow down a little!>')
     return
-  bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
+  context.bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
   pqed_messages.add(replid)
   log_pq(ci, froi, repl.text)
 
 @inqueue(cmdqueue)
 @cmd_ratelimit
-def cmd_stats(bot, update):
+def cmd_stats(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality = db_stats(ci)
   quality_s = ("%.0f%%" % (quality*100)) if quality else "Unknown"
-  cmdreply(bot, ci, 'Chat stats for %s:\nMessages received: %d (%d total)\nMessages sent: %d (%d total)\nFirst message: %s\nGroup/user rank: %d\n'
+  cmdreply(context.bot, ci, 'Chat stats for %s:\nMessages received: %d (%d total)\nMessages sent: %d (%d total)\nFirst message: %s\nGroup/user rank: %d\n'
                     'Chat quality: %s\n'
                     'Users/groups active in the last 48 hours: %d/%d'
                     % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, quality_s, actusr, actgrp))
 
 @cmd_ratelimit
-def cmd_badword(bot, update):
+def cmd_badword(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message.text
   msg_split = msg.split(' ', 1)
   bw = get_badwords(ci)
   if len(msg_split) == 1:
-    cmdreply(bot, ci, '< Current bad words: %s (%d) >' % (' '.join((repr(w) for w in bw)), len(bw)))
+    cmdreply(context.bot, ci, '< Current bad words: %s (%d) >' % (' '.join((repr(w) for w in bw)), len(bw)))
   else:
-    if not admin_check(bot, ci, froi):
-      cmdreply(bot, ci, '< you are not allowed to use this command >')
+    if not admin_check(context.bot, ci, froi):
+      cmdreply(context.bot, ci, '< you are not allowed to use this command >')
       return
     badword = msg_split[1].strip().lower()
     if '\n' in badword:
-      cmdreply(bot, ci, '< Bad word contains newline >')
+      cmdreply(context.bot, ci, '< Bad word contains newline >')
       return
     if badword in bw:
       delete_badword(ci, badword)
-      cmdreply(bot, ci, '< Bad word %s removed >' % (repr(badword)))
+      cmdreply(context.bot, ci, '< Bad word %s removed >' % (repr(badword)))
     else:
       add_badword(ci, badword, froi)
-      cmdreply(bot, ci, '< Bad word %s added >' % (repr(badword)))
+      cmdreply(context.bot, ci, '< Bad word %s added >' % (repr(badword)))
 
 def thr_console():
   for line in sys.stdin:
@@ -819,7 +819,7 @@ nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
 nn.run_thread()
 nn.loop.set_default_executor(ThreadPoolExecutor(max_workers=4))
 
-updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15})
+updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15}, use_context=True)
 dispatcher = updater.dispatcher
 
 dispatcher.add_handler(CommandHandler('me', me), 0)
