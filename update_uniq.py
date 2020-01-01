@@ -24,7 +24,7 @@ SELECT * FROM (
   SELECT convid, message_count, new_messages, age, CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7)  AS DOUBLE) AS score, COALESCE(uniqueness, -1) AS uniqueness, chatname
   FROM (
     SELECT convid, message_count, message_count - last_count AS new_messages, TIMESTAMPDIFF(MINUTE, last_update, CURRENT_TIMESTAMP) AS age, uniqueness, long_name as chatname
-    FROM chat_uniqueness LEFT JOIN chat_counters USING (convid) LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo USING (chatinfo_id) WHERE sent=0
+    FROM chat_uniqueness LEFT JOIN chat_counters USING (convid) LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo_v USING (chatinfo_id) WHERE sent=0
   ) a
 ) b WHERE score > 0.1 OR uniqueness < 0 ORDER BY score DESC LIMIT 10;
 """
