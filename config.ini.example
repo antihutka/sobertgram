@@ -1,0 +1,25 @@
+[Backend]
+Url: http://localhost:7880/
+Keyprefix: tg-test
+
+[Database]
+Host: localhost
+User: sobertgram
+Password: 12345
+Database: sobertgram
+
+[Telegram]
+Token: 012345678:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+QuoteChannel: @PQGoesHere
+
+[Chat]
+Keyword: sobert
+Timeout: 48
+
+[Logging]
+Logfile: sobert.log
+VerboseStdout: yes
+
+[Download]
+Video: no
+Document: no
