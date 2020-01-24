@@ -428,7 +428,7 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
     f.download(custom_path=filename, timeout=120)
     if on_finish:
       on_finish(filename)
-    sleep(10)
+    sleep(3)
   if downloadqueue.full():
     logging.warning('Warning: download queue full')
     if not on_finish:
@@ -545,7 +545,8 @@ def audio(update: Update, context: CallbackContext):
     ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   logging.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
+  if (Config.getboolean('Download', 'Audio', fallback=True)):
+    download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
   log_file(ci, fro, fron, 'audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def photo(update: Update, context: CallbackContext):
