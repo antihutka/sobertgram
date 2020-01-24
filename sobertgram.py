@@ -335,7 +335,6 @@ def setup_logging():
   logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, handlers = [console, logfile])
 setup_logging()
 
-
 def ireplace(old, new, text):
   idx = 0
   while idx < len(text):
@@ -478,11 +477,6 @@ def msg(update: Update, context: CallbackContext):
   getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-
-def start(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
-  logging.info('%s/%d /start' % (fro, ci))
-  sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
 def me(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
@@ -662,6 +656,12 @@ def cmd_ratelimit(inf):
       return
     inf(update, context)
   return outf
+
+@cmd_ratelimit
+def start(update: Update, context: CallbackContext):
+  ci, fro, fron, froi = cifrofron(update)
+  logging.info('%s/%d /start' % (fro, ci))
+  sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
 @cmd_ratelimit
 def cmd_option_get(update: Update, context: CallbackContext):
