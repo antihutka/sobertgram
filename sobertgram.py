@@ -1,15 +1,12 @@
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
 from telegram import ChatAction, Update
 import logging
-import socket
 import re
 import sys
-from time import time, sleep
+from time import sleep
 from random import uniform
 from queue import Queue
-from threading import Thread
 import os.path
-import unicodedata
 import subprocess
 
 from configuration import Config
@@ -24,8 +21,6 @@ if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
 Config.read(sys.argv[1])
 
-convos = {}
-times = {}
 known_stickers = set()
 downloaded_files = set()
 downloadqueue = Queue(maxsize=1024)
@@ -105,7 +100,7 @@ def get_chatinfo_id(cur, chat):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log(cur, conv, username, fromid, fromname, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log(cur, conv, username, fromid, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
@@ -125,7 +120,7 @@ def log(cur, conv, username, fromid, fromname, sent, text, original_message = No
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_cmd(cur, conv, username, fromname, cmd, conversation = None, user = None):
+def log_cmd(cur, conv, username, cmd, conversation = None, user = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   cur.execute("INSERT INTO `commands` (`convid`, `command`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s)", (conv, cmd, chatinfo_id, userinfo_id))
@@ -133,7 +128,7 @@ def log_cmd(cur, conv, username, fromname, cmd, conversation = None, user = None
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_sticker(cur, conv, username, fromid, fromname, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log_sticker(cur, conv, username, fromid, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
@@ -385,7 +380,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
       if rs:
         logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = []
-        log_sticker(ci, fro, froi, fron, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+        log_sticker(ci, fro, froi, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
         try:
           m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         except Exception:
@@ -397,7 +392,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
         log_add_msg_id(dbid, m.message_id)
         return
     dbid = []
-    log(ci, fro, froi, fron, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+    log(ci, fro, froi, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
     try:
       m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
     except Exception:
@@ -446,7 +441,7 @@ def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   fwduser = message.forward_from
   fwdchat = message.forward_from_chat
 
-  log(ci, fro, froi, fron, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
+  log(ci, fro, froi, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
 
 def cifrofron(update):
   ci = update.message.chat_id
@@ -497,7 +492,7 @@ def sticker(update: Update, context: CallbackContext):
   emo = st.emoji or ''
   logging.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, froi, fron, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
+  log_sticker(ci, fro, froi, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(context.bot, update.message, ci):
@@ -728,7 +723,7 @@ def logcmd(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
-  log_cmd(ci, fro, fron, txt, conversation = update.message.chat, user = update.message.from_user)
+  log_cmd(ci, fro, txt, conversation = update.message.chat, user = update.message.from_user)
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
