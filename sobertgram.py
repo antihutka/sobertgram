@@ -722,11 +722,15 @@ def cmd_option_set(update: Update, context: CallbackContext):
     cmdreply(context.bot, ci, '<invalid option or value>')
 
 def cmd_option_flush(update: Update, context: CallbackContext):
+  if not update.message:
+    return
   options.clear()
   badword_cache.clear()
   cmdreply(context.bot, update.message.chat_id, '<done>')
 
 def logcmd(update: Update, context: CallbackContext):
+  if not update.message:
+    return
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
