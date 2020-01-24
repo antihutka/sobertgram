@@ -1,3 +1,4 @@
+from telegram.ext.dispatcher import run_async
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
 from telegram import ChatAction, Update
 import logging
@@ -8,6 +9,7 @@ from random import uniform
 from queue import Queue
 import os.path
 import subprocess
+from cachetools import TTLCache, cached
 
 from configuration import Config
 from database import dbcur_queryone, with_cursor, cache_on_commit
@@ -347,26 +349,35 @@ def ireplace(old, new, text):
     idx = index_l + len(new) 
   return text
 
+def get_cache_key(bot, ci):
+  return ci
+
+@cached(TTLCache(1024, 60), key = get_cache_key)
 def can_send_message(bot, ci):
   self_member = bot.get_chat_member(ci, bot.id)
   if self_member.status == 'restricted' and not self_member.can_send_messages:
     return False
   return True
 
+@cached(TTLCache(1024, 600), key = get_cache_key)
 def can_send_sticker(bot, ci):
   self_member = bot.get_chat_member(ci, bot.id)
   if self_member.status == 'restricted' and not self_member.can_send_other_messages:
     return False
   return True
 
+@run_async
+def send_typing_notification(bot, convid):
+  try:
+    bot.sendChatAction(chat_id=convid, action=ChatAction.TYPING)
+  except Exception:
+    logger.exception("Can't send typing action")
+
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
   if asyncio.run_coroutine_threadsafe(nn.queued_for_key(str(ci)), nn.loop).result() > 16:
     logger.warning('Warning: reply queue full, dropping reply')
     return
-  try:
-    bot.sendChatAction(chat_id=ci, action=ChatAction.TYPING)
-  except Exception:
-    logger.exception("Can't send typing action")
+  send_typing_notification(bot, ci)
   badwords = get_badwords(ci)
   badwords.sort(key=len, reverse=True)
   def rf(txt):
@@ -458,16 +469,14 @@ def cifrofron(update):
   return ci, fro, fron, froi
 
 def should_reply(bot, msg, ci, txt = None):
-  if not can_send_message(bot, ci):
-    return False
   if msg and msg.reply_to_message and msg.reply_to_message.from_user.id == bot.id:
-    return True
+    return True and can_send_message(bot, ci)
   if not txt:
     txt = msg.text
   if txt and (Config.get('Chat', 'Keyword') in txt.lower()):
-    return True
+    return True and can_send_message(bot, ci)
   rp = option_get_float(ci, 'reply_prob', 1, 0.02)
-  return (uniform(0, 1) < rp)
+  return (uniform(0, 1) < rp) and can_send_message(bot, ci)
 
 def msg(update: Update, context: CallbackContext):
   if not update.message:
