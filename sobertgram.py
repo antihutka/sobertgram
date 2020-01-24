@@ -100,11 +100,13 @@ def get_chatinfo_id(cur, chat):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log(cur, conv, username, fromid, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log(cur, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
   fwdchat_id = get_chatinfo_id(cur, fwdchat)
+  conv = conversation.id
+  fromid = user.id
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   if original_message:
@@ -120,19 +122,22 @@ def log(cur, conv, username, fromid, sent, text, original_message = None, msg_id
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_cmd(cur, conv, username, cmd, conversation = None, user = None):
+def log_cmd(cur, cmd, conversation = None, user = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
+  conv = conversation.id
   cur.execute("INSERT INTO `commands` (`convid`, `command`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s)", (conv, cmd, chatinfo_id, userinfo_id))
 
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_sticker(cur, conv, username, fromid, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log_sticker(cur, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
   fwdchat_id = get_chatinfo_id(cur, fwdchat)
+  conv = conversation.id
+  fromid = user.id
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
@@ -164,17 +169,19 @@ def log_add_msg_id(cur, db_id, msg_id):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_file(cur, conv, username, chatname, ftype, fsize, attr, file_id, conversation=None, user=None):
+def log_file(cur, ftype, fsize, attr, file_id, conversation=None, user=None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
+  conv = conversation.id
   cur.execute("INSERT INTO `chat_files` (`convid`, `type`, `file_size`, `attr`, `file_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, ftype, fsize, attr, file_id, chatinfo_id, userinfo_id))
 
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_status(cur, conv, username, chatname, updates, conversation=None, user=None):
+def log_status(cur, updates, conversation=None, user=None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
+  conv = conversation.id
   if not updates:
     return
   for u in updates:
@@ -380,7 +387,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
       if rs:
         logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = []
-        log_sticker(ci, fro, froi, 1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+        log_sticker(1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
         try:
           m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         except Exception:
@@ -392,7 +399,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
         log_add_msg_id(dbid, m.message_id)
         return
     dbid = []
-    log(ci, fro, froi, 1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+    log(1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
     try:
       m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
     except Exception:
@@ -441,7 +448,7 @@ def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   fwduser = message.forward_from
   fwdchat = message.forward_from_chat
 
-  log(ci, fro, froi, 0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
+  log(0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
 
 def cifrofron(update):
   ci = update.message.chat_id
@@ -492,7 +499,7 @@ def sticker(update: Update, context: CallbackContext):
   emo = st.emoji or ''
   logging.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(ci, fro, froi, 0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
+  log_sticker(0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(context.bot, update.message, ci):
@@ -510,7 +517,7 @@ def video(update: Update, context: CallbackContext):
   logging.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Video', fallback=True)):
     download_file(context.bot, 'video', fid, fid + '.mp4')
-  log_file(ci, fro, fron, 'video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def document(update: Update, context: CallbackContext):
   if not update.message:
@@ -526,7 +533,7 @@ def document(update: Update, context: CallbackContext):
   logging.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Document', fallback=True)):
     download_file(context.bot, 'document', fid, fid + ' ' + name)
-  log_file(ci, fro, fron, 'document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def audio(update: Update, context: CallbackContext):
   if not update.message:
@@ -542,7 +549,7 @@ def audio(update: Update, context: CallbackContext):
   logging.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Audio', fallback=True)):
     download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
-  log_file(ci, fro, fron, 'audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def photo(update: Update, context: CallbackContext):
   if not update.message:
@@ -581,7 +588,7 @@ def photo(update: Update, context: CallbackContext):
         sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
-  log_file(ci, fro, fron, 'photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def cmd_download_photo(update: Update, context: CallbackContext):
   if not update.message:
@@ -600,7 +607,7 @@ def voice(update: Update, context: CallbackContext):
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
   logging.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(context.bot, 'voice', fid, fid + '.opus')
-  log_file(ci, fro, fron, 'voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 def status(update: Update, context: CallbackContext):
   msg = update.message
@@ -623,7 +630,7 @@ def status(update: Update, context: CallbackContext):
     log_migration(ci, msg.migrate_from_chat_id)
   for u in upd:
     logging.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
-  log_status(ci, fro, fron, upd, conversation=update.message.chat, user=update.message.from_user)
+  log_status(upd, conversation=update.message.chat, user=update.message.from_user)
 
 def cmdreply(bot, ci, text):
   logging.info('=> %s' % text)
@@ -723,7 +730,7 @@ def logcmd(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
-  log_cmd(ci, fro, txt, conversation = update.message.chat, user = update.message.from_user)
+  log_cmd(txt, conversation = update.message.chat, user = update.message.from_user)
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
