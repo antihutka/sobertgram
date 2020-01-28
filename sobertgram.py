@@ -215,16 +215,15 @@ def rand_sticker(cur, emoji = None):
     emoji = lookup_sticker_emoji(emoji)
     if not emoji:
       return None
-    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `freqmod` > 0 AND `emoji` = %s ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1", (emoji,))
+    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE set_name NOT IN (SELECT set_name FROM bad_stickersets) AND `freqmod` > 0 AND `emoji` = %s ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1", (emoji,))
   else:
-    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE `freqmod` > 0 ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1")
-  row = cur.fetchone()
-  return row
+    cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE set_name NOT IN (SELECT set_name FROM bad_stickersets) AND `freqmod` > 0 ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1")
+  return cur.fetchone()
 
 @retry(5)
 @with_cursor
 def get_sticker_emojis(cur):
-  cur.execute("SELECT DISTINCT `emoji` from `stickers` WHERE `freqmod` > 0")
+  cur.execute("SELECT DISTINCT `emoji` from `stickers` WHERE set_name NOT IN (SELECT set_name FROM bad_stickersets) AND `freqmod` > 0")
   rows = cur.fetchall()
   return [x[0] for x in rows]
 
