@@ -1,6 +1,7 @@
 from telegram.ext.dispatcher import run_async
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
 from telegram import ChatAction, Update
+import telegram as T
 import logging
 import re
 import sys
@@ -373,6 +374,21 @@ def send_typing_notification(bot, convid):
   except Exception:
     logger.exception("Can't send typing action")
 
+def try_reply(repfun, *args, **kwargs):
+  while True:
+    try:
+      repfun(*args, **kwargs)
+      return
+    except Exception as e:
+      if (isinstance(e, T.error.BadRequest) and 
+          'reply_to_message_id' in kwargs and 
+          kwargs['reply_to_message_id']):
+        logger.warning('Got BadRequest, trying without reply_to_message_id')
+        del kwargs['reply_to_message_id']
+        continue
+      logger.exception('I got this error')
+      return None
+
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
   if asyncio.run_coroutine_threadsafe(nn.queued_for_key(str(ci)), nn.loop).result() > 16:
     logger.warning('Warning: reply queue full, dropping reply')
@@ -399,27 +415,15 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
         logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = []
         log_sticker(1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-        try:
-          m = bot.sendSticker(chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
-        except Exception:
-          if reply_to:
-            logger.exception("Can't send reply, trying without")
-            m = bot.sendSticker(chat_id=ci, sticker=rs[0])
-          else:
-            raise
-        log_add_msg_id(dbid, m.message_id)
+        m = try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
+        if m:
+          log_add_msg_id(dbid, m.message_id)
         return
     dbid = []
     log(1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-    try:
-      m = bot.sendMessage(chat_id=ci, text=msg, reply_to_message_id=reply_to)
-    except Exception:
-      if reply_to:
-        logger.exception("Can't send reply, trying without")
-        m = bot.sendMessage(chat_id=ci, text=msg)
-      else:
-        raise
-    log_add_msg_id(dbid, m.message_id)
+    m = try_reply(bot.sendMessage, chat_id=ci, text=msg, reply_to_message_id=reply_to)
+    if m:
+      log_add_msg_id(dbid, m.message_id)
   get_cb(rf, ci, badwords)
 
 def fix_name(value):
