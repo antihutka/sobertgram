@@ -218,9 +218,18 @@ def should_reply(bot, msg, ci, txt = None):
   rp = option_get_float(ci, 'reply_prob', 1, 0.02)
   return (uniform(0, 1) < rp) and can_send_message(bot, ci)
 
+def update_wrap(f):
+  def wrapped(update: Update, context: CallbackContext):
+    if not update.message:
+      return
+    is_blacklisted = option_get_float(update.message.chat_id, 'blacklisted', 0, 0) > 0
+    if is_blacklisted:
+      return
+    return f(update = update, context = context)
+  return wrapped
+
+@update_wrap
 def msg(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
@@ -229,6 +238,7 @@ def msg(update: Update, context: CallbackContext):
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
+@update_wrap
 def me(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
@@ -237,9 +247,8 @@ def me(update: Update, context: CallbackContext):
   getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
+@update_wrap
 def sticker(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
@@ -255,9 +264,8 @@ def sticker(update: Update, context: CallbackContext):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   download_file(context.bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
 
+@update_wrap
 def video(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   vid = update.message.video
   fid = vid.file_id
@@ -268,9 +276,8 @@ def video(update: Update, context: CallbackContext):
     download_file(context.bot, 'video', fid, fid + '.mp4')
   log_file('video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
+@update_wrap
 def document(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   doc = update.message.document
   fid = doc.file_id
@@ -284,9 +291,8 @@ def document(update: Update, context: CallbackContext):
     download_file(context.bot, 'document', fid, fid + ' ' + name)
   log_file('document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
+@update_wrap
 def audio(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   aud = update.message.audio
   fid = aud.file_id
@@ -300,9 +306,8 @@ def audio(update: Update, context: CallbackContext):
     download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
   log_file('audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
+@update_wrap
 def photo(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
@@ -339,15 +344,15 @@ def photo(update: Update, context: CallbackContext):
   download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
   log_file('photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
+@update_wrap
 def cmd_download_photo(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   fid = update.message.text.split(' ')[1]
   if db_get_photo(fid):
     download_file(context.bot, 'photo', fid, fid + '.jpg')
   else:
     logger.warning('Photo not in DB')
 
+@update_wrap
 def voice(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   voi = update.message.voice
@@ -358,6 +363,7 @@ def voice(update: Update, context: CallbackContext):
   download_file(context.bot, 'voice', fid, fid + '.opus')
   log_file('voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
+@update_wrap
 def status(update: Update, context: CallbackContext):
   msg = update.message
   ci, fro, fron, froi = cifrofron(update)
@@ -386,6 +392,7 @@ def cmdreply(bot, ci, text):
   msg = bot.sendMessage(chat_id=ci, text=text)
   command_replies.add(msg.message_id)
 
+@update_wrap
 def givesticker(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   foremo = None
@@ -409,12 +416,14 @@ def cmd_ratelimit(inf):
     inf(update, context)
   return outf
 
+@update_wrap
 @cmd_ratelimit
 def start(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   logging.info('%s/%d /start' % (fro, ci))
   sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
+@update_wrap
 @cmd_ratelimit
 def cmd_option_get(update: Update, context: CallbackContext):
   ci = update.message.chat_id
@@ -451,6 +460,7 @@ def admin_check(bot, convid, userid):
     return True
   return user_is_admin(bot, convid, userid)
 
+@update_wrap
 @inqueue(cmdqueue)
 @cmd_ratelimit
 def cmd_option_set(update: Update, context: CallbackContext):
@@ -470,16 +480,14 @@ def cmd_option_set(update: Update, context: CallbackContext):
   else:
     cmdreply(context.bot, ci, '<invalid option or value>')
 
+@update_wrap
 def cmd_option_flush(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   options.clear()
   badword_cache.clear()
   cmdreply(context.bot, update.message.chat_id, '<done>')
 
+@update_wrap
 def logcmd(update: Update, context: CallbackContext):
-  if not update.message:
-    return
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
@@ -495,10 +503,12 @@ Commands:
 /stats - print group/user stats
 """
 
+@update_wrap
 @cmd_ratelimit
 def cmd_help(update: Update, context: CallbackContext):
   cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
 
+@update_wrap
 @inqueue(cmdqueue)
 @cmd_ratelimit
 def cmd_pq(update: Update, context: CallbackContext):
@@ -527,6 +537,7 @@ def cmd_pq(update: Update, context: CallbackContext):
   pqed_messages.add(replid)
   log_pq(ci, froi, repl.text)
 
+@update_wrap
 @inqueue(cmdqueue)
 @cmd_ratelimit
 def cmd_stats(update: Update, context: CallbackContext):
@@ -538,6 +549,7 @@ def cmd_stats(update: Update, context: CallbackContext):
                     'Users/groups active in the last 48 hours: %d/%d'
                     % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, quality_s, actusr, actgrp))
 
+@update_wrap
 @cmd_ratelimit
 def cmd_badword(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
