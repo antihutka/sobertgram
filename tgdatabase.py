@@ -4,7 +4,7 @@ import logging
 from util import retry, inqueue
 from database import dbcur_queryone, with_cursor, cache_on_commit
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 known_stickers = set()
 logqueue = Queue()
 options = {}
@@ -277,7 +277,7 @@ def db_get_photo(cur, fid):
 def loadstickers():
   global sticker_emojis
   sticker_emojis = set(get_sticker_emojis())
-  logging.info("%d sticker emojis loaded" % len(sticker_emojis))
+  logger.info("%d sticker emojis loaded" % len(sticker_emojis))
 
 def sticker_emojis_g():
   return sticker_emojis

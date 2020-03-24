@@ -31,7 +31,7 @@ cmdqueue = Queue()
 pqed_messages = set()
 command_replies = set()
 last_msg_id = {}
-logger = logging.getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 def put(convid, text):
@@ -136,9 +136,9 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     omsg = msg = txt
     for bw in badwords:
       msg = ireplace(bw, '*' * len(bw), msg)
-    logging.info(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
+    logger.info(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
     if omsg != msg:
-      logging.info(' (original)=> %s' % (omsg,))
+      logger.info(' (original)=> %s' % (omsg,))
     sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
     if (not replyto) and replyto_cond and (replyto_cond != last_msg_id[ci]):
       reply_to = replyto_cond
@@ -148,7 +148,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     if uniform(0, 1) < sp and can_send_sticker(bot, ci):
       rs = rand_sticker(msg)
       if rs:
-        logging.info('sending as sticker %s/%s' % (rs[2], rs[0]))
+        logger.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = []
         log_sticker(1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
         m = try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
@@ -172,25 +172,25 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
   def df():
     filename = ftype + '/' + fname
     if os.path.isfile(filename):
-      logging.info('file ' + filename + ' already exists')
+      logger.info('file ' + filename + ' already exists')
       if on_finish:
         on_finish(filename)
       return
     f = bot.getFile(file_id=fid)
-    logging.info('downloading file ' + filename + ' from ' + f.file_path)
+    logger.info('downloading file ' + filename + ' from ' + f.file_path)
     f.download(custom_path=filename, timeout=120)
     if on_finish:
       on_finish(filename)
     sleep(3)
   if downloadqueue.full():
-    logging.warning('Warning: download queue full')
+    logger.warning('Warning: download queue full')
     if not on_finish:
       return
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
 def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
-  logging.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
+  logger.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
   put(ci, txt)
 
   reply_to_id = message.reply_to_message.message_id if message.reply_to_message else None
@@ -255,7 +255,7 @@ def sticker(update: Update, context: CallbackContext):
   st = update.message.sticker
   set = '(unnamed)' if st.set_name is None else st.set_name
   emo = st.emoji or ''
-  logging.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
+  logger.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
   log_sticker(0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
@@ -271,7 +271,7 @@ def video(update: Update, context: CallbackContext):
   fid = vid.file_id
   attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
   size = vid.file_size
-  logging.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logger.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Video', fallback=True)):
     download_file(context.bot, 'video', fid, fid + '.mp4')
   log_file('video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
@@ -286,7 +286,7 @@ def document(update: Update, context: CallbackContext):
   if not name:
     name = '_unnamed_.mp4'
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
-  logging.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logger.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Document', fallback=True)):
     download_file(context.bot, 'document', fid, fid + ' ' + name)
   log_file('document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
@@ -301,7 +301,7 @@ def audio(update: Update, context: CallbackContext):
   if aud.mime_type == 'audio/mp3':
     ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
-  logging.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logger.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Audio', fallback=True)):
     download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
   log_file('audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
@@ -326,19 +326,19 @@ def photo(update: Update, context: CallbackContext):
     getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
     if should_reply(context.bot, update.message, ci, txt):
       sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-  logging.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
+  logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   def process_photo(f):
-    logging.info('OCR running on %s' % f)
+    logger.info('OCR running on %s' % f)
     ocrtext = subprocess.check_output(['tesseract', f, 'stdout']).decode('utf8', errors='ignore')
     ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
-    logging.info('OCR: "%s"' % ocrtext)
+    logger.info('OCR: "%s"' % ocrtext)
     if ocrtext == "":
       return
     log_file_text(fid, 'ocr', ocrtext)
     def process_photo_reply(_context):
       put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
-        logging.info('sending reply')
+        logger.info('sending reply')
         sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
@@ -359,7 +359,7 @@ def voice(update: Update, context: CallbackContext):
   fid = voi.file_id
   size = voi.file_size
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
-  logging.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
+  logger.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(context.bot, 'voice', fid, fid + '.opus')
   log_file('voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
@@ -384,11 +384,11 @@ def status(update: Update, context: CallbackContext):
     upd.append(('migrate_from_chat_id', str(msg.migrate_from_chat_id), None))
     log_migration(ci, msg.migrate_from_chat_id)
   for u in upd:
-    logging.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
+    logger.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
   log_status(upd, conversation=update.message.chat, user=update.message.from_user)
 
 def cmdreply(bot, ci, text):
-  logging.info('=> %s' % text)
+  logger.info('=> %s' % text)
   msg = bot.sendMessage(chat_id=ci, text=text)
   command_replies.add(msg.message_id)
 
@@ -405,13 +405,13 @@ def givesticker(update: Update, context: CallbackContext):
     cmdreply(context.bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis_g()))))
   else:
     fid, emo, set = rs
-    logging.info('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
+    logger.info('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
     context.bot.sendSticker(chat_id=ci, sticker=fid)
 
 def cmd_ratelimit(inf):
   def outf(update: Update, context: CallbackContext):
     if (cmd_limit_check(update.message.chat_id) > 100):
-      logging.warning('rate limited!')
+      logger.warning('rate limited!')
       return
     inf(update, context)
   return outf
@@ -420,7 +420,7 @@ def cmd_ratelimit(inf):
 @cmd_ratelimit
 def start(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
-  logging.info('%s/%d /start' % (fro, ci))
+  logger.info('%s/%d /start' % (fro, ci))
   sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
 @update_wrap
@@ -490,7 +490,7 @@ def cmd_option_flush(update: Update, context: CallbackContext):
 def logcmd(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
-  logging.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
+  logger.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
   log_cmd(txt, conversation = update.message.chat, user = update.message.from_user)
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
