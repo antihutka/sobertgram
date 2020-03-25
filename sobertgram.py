@@ -19,14 +19,14 @@ import threads
 from httpnn import HTTPNN
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from util import retry, inqueue
+from util import retry, inqueue, KeyCounters
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
 Config.read(sys.argv[1])
 
 downloaded_files = set()
-downloadqueue = Queue(maxsize=1024)
+downloadqueue = Queue()
 cmdqueue = Queue()
 pqed_messages = set()
 command_replies = set()
@@ -166,7 +166,9 @@ def fix_name(value):
   value = re.sub('[/<>:"\\\\|?*]', '_', value)
   return value
 
-def download_file(bot, ftype, fid, fname, on_finish=None):
+downloads_per_chat = KeyCounters()
+
+def download_file(bot, ftype, fid, fname, convid, on_finish=None):
   fname = fix_name(fname)
 
   def df():
@@ -177,15 +179,17 @@ def download_file(bot, ftype, fid, fname, on_finish=None):
         on_finish(filename)
       return
     f = bot.getFile(file_id=fid)
-    logger.info('downloading file ' + filename + ' from ' + f.file_path)
+    logger.info('downloading file %s from %s, %d/%d pending' % (filename, f.file_path, downloads_per_chat[convid], downloadqueue.qsize()))
     f.download(custom_path=filename, timeout=120)
     if on_finish:
       on_finish(filename)
-    sleep(3)
-  if downloadqueue.full():
-    logger.warning('Warning: download queue full')
-    if not on_finish:
-      return
+    downloads_per_chat.dec(convid)
+    sleep(1)
+  pending_chat = downloads_per_chat[convid]
+  if pending_chat > 20:
+    logger.warning("Skipping download - %d downloads pending for chat, %d downloads pending total" % (pending_chat, downloadqueue.qsize()))
+    return
+  downloads_per_chat.inc(convid)
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
@@ -262,7 +266,7 @@ def sticker(update: Update, context: CallbackContext):
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-  download_file(context.bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp');
+  download_file(context.bot, 'stickers', st.file_id, st.file_id + ' ' + set + '.webp', convid=ci);
 
 @update_wrap
 def video(update: Update, context: CallbackContext):
@@ -273,7 +277,7 @@ def video(update: Update, context: CallbackContext):
   size = vid.file_size
   logger.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Video', fallback=True)):
-    download_file(context.bot, 'video', fid, fid + '.mp4')
+    download_file(context.bot, 'video', fid, fid + '.mp4', convid=ci)
   log_file('video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
@@ -288,7 +292,7 @@ def document(update: Update, context: CallbackContext):
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
   logger.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Document', fallback=True)):
-    download_file(context.bot, 'document', fid, fid + ' ' + name)
+    download_file(context.bot, 'document', fid, fid + ' ' + name, convid=ci)
   log_file('document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
@@ -303,7 +307,7 @@ def audio(update: Update, context: CallbackContext):
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   logger.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Audio', fallback=True)):
-    download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext))
+    download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext), convid=ci)
   log_file('audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
@@ -341,14 +345,14 @@ def photo(update: Update, context: CallbackContext):
         logger.info('sending reply')
         sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
-  download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo)
+  download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo, convid=ci)
   log_file('photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
 def cmd_download_photo(update: Update, context: CallbackContext):
   fid = update.message.text.split(' ')[1]
   if db_get_photo(fid):
-    download_file(context.bot, 'photo', fid, fid + '.jpg')
+    download_file(context.bot, 'photo', fid, fid + '.jpg', convid=0)
   else:
     logger.warning('Photo not in DB')
 
@@ -360,7 +364,7 @@ def voice(update: Update, context: CallbackContext):
   size = voi.file_size
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
   logger.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
-  download_file(context.bot, 'voice', fid, fid + '.opus')
+  download_file(context.bot, 'voice', fid, fid + '.opus', convid=ci)
   log_file('voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
