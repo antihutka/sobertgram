@@ -254,6 +254,12 @@ def me(update: Update, context: CallbackContext):
   getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
+def emojiname(emoji):
+  try:
+    return ' '.join((unicodedata.name(e) for e in emoji))
+  except:
+    return 'unknown'
+
 @update_wrap
 def sticker(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
@@ -270,7 +276,7 @@ def sticker(update: Update, context: CallbackContext):
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-  download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(unicodedata.name(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
+  download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
 
 @update_wrap
 def video(update: Update, context: CallbackContext):

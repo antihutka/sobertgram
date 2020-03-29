@@ -92,14 +92,13 @@ def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = Non
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
   if fwduser or fwdchat:
     cur.execute("INSERT INTO `forwarded_from` (`id`, `fwd_userinfo_id`, `fwd_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (fwduser_id, fwdchat_id))
-  if file_id not in known_stickers:
-    cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_id,))
+  if file_unique_id and file_unique_id not in known_stickers:
+    cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_unique_id,))
     (exists,) = cur.fetchone()
     if exists == 0:
-      logger.info("Adding sticker <%s> <%s> < %s >" % (file_id, set_name, text))
-      cur.execute("REPLACE INTO `stickers` (`file_id`, `emoji`, `set_name`) VALUES (%s, %s, %s)", (file_id, text, set_name))
-  if file_id not in known_stickers:
-    known_stickers.add(file_id)
+      logger.info("Adding sticker <%s> <%s> < %s >" % (file_unique_id, set_name, text))
+      cur.execute("REPLACE INTO `stickers` (`file_id`, `emoji`, `set_name`) VALUES (%s, %s, %s)", (file_unique_id, text, set_name))
+    known_stickers.add(file_unique_id)
     sticker_emojis.add(text)
   if rowid_out is not None:
     rowid_out.append(rowid)
@@ -182,6 +181,14 @@ def is_file_downloaded(cur, uniqid):
 def log_file_download(cur, uniqid, fpath, fsize):
   cur.execute("INSERT INTO `downloaded_files` (`unique_id`, `path`, `size`) VALUES (%s, %s, %s)", (uniqid, fpath, fsize))
 
+def get_id_by_uniq(cur, uniq_id):
+  cur.execute("SELECT `file_id` FROM `file_ids` WHERE `file_unique_id` = %s ORDER BY `id` DESC LIMIT 1", (uniq_id,))
+  r = cur.fetchone()
+  if r:
+    return r[0]
+  else:
+    return uniq_id
+
 @retry(5)
 @with_cursor
 def rand_sticker(cur, emoji = None):
@@ -192,7 +199,11 @@ def rand_sticker(cur, emoji = None):
     cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE set_name NOT IN (SELECT set_name FROM bad_stickersets) AND `freqmod` > 0 AND `emoji` = %s ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1", (emoji,))
   else:
     cur.execute("SELECT `file_id`, `emoji`, `set_name` FROM `stickers` WHERE set_name NOT IN (SELECT set_name FROM bad_stickersets) AND `freqmod` > 0 ORDER BY -LOG(1.0 - RAND()) / `freqmod` LIMIT 1")
-  return cur.fetchone()
+  r = cur.fetchone()
+  if r:
+    return (get_id_by_uniq(cur, r[0]), r[1], r[2])
+  else:
+    return None
 
 @retry(5)
 @with_cursor
