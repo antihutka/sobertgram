@@ -608,7 +608,7 @@ dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('me', me), 0)
 dispatcher.add_handler(MessageHandler(Filters.command, logcmd), 0)
 
-dispatcher.add_handler(MessageHandler(Filters.text, msg), 1)
+dispatcher.add_handler(MessageHandler(Filters.text & (~Filters.command), msg), 1)
 
 dispatcher.add_handler(MessageHandler(Filters.sticker, sticker), 2)
 dispatcher.add_handler(MessageHandler(Filters.video, video), 2)
