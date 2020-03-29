@@ -68,16 +68,23 @@ def log_cmd(cur, cmd, conversation = None, user = None):
   conv = conversation.id
   cur.execute("INSERT INTO `commands` (`convid`, `command`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s)", (conv, cmd, chatinfo_id, userinfo_id))
 
+def log_file_id(cur, file_id, file_unique_id):
+  cur.execute("INSERT INTO file_ids(file_id, file_unique_id) VALUES (%s,%s)", (file_id, file_unique_id))
+  return cur.lastrowid
+
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_sticker(cur, sent, text, file_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
   fwdchat_id = get_chatinfo_id(cur, fwdchat)
   conv = conversation.id
   fromid = user.id
+  if not sent:
+    fid = log_file_id(cur, file_id, file_unique_id)
+    logger.info("FID logged: %d/%s/%s" % (fid, file_id, file_unique_id))
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
@@ -123,10 +130,11 @@ def log_add_msg_id(cur, db_id, msg_id):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_file(cur, ftype, fsize, attr, file_id, conversation=None, user=None):
+def log_file(cur, ftype, fsize, attr, file_id, file_unique_id, conversation=None, user=None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   conv = conversation.id
+  fid = log_file_id(cur, file_id, file_unique_id)
   cur.execute("INSERT INTO `chat_files` (`convid`, `type`, `file_size`, `attr`, `file_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, ftype, fsize, attr, file_id, chatinfo_id, userinfo_id))
 
 @inqueue(logqueue)

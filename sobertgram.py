@@ -150,7 +150,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
       if rs:
         logger.info('sending as sticker %s/%s' % (rs[2], rs[0]))
         dbid = []
-        log_sticker(1, msg, rs[0], rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+        log_sticker(1, msg, rs[0], None, rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
         m = try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
         if m:
           log_add_msg_id(dbid, m.message_id)
@@ -261,7 +261,8 @@ def sticker(update: Update, context: CallbackContext):
   emo = st.emoji or ''
   logger.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  log_sticker(0, emo, st.file_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
+  logger.info("sticker data: %s" % repr(st.__dict__))
+  log_sticker(0, emo, st.file_id, st.file_unique_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(context.bot, update.message, ci):
@@ -273,18 +274,20 @@ def video(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   vid = update.message.video
   fid = vid.file_id
+  uid = vid.file_unique_id
   attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
   size = vid.file_size
   logger.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Video', fallback=True)):
     download_file(context.bot, 'video', fid, fid + '.mp4', convid=ci)
-  log_file('video', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('video', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
 def document(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   doc = update.message.document
   fid = doc.file_id
+  uid = doc.file_unique_id
   size = doc.file_size
   name = doc.file_name
   if not name:
@@ -293,13 +296,14 @@ def document(update: Update, context: CallbackContext):
   logger.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Document', fallback=True)):
     download_file(context.bot, 'document', fid, fid + ' ' + name, convid=ci)
-  log_file('document', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('document', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
 def audio(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   aud = update.message.audio
   fid = aud.file_id
+  uid = aud.file_unique_id
   size = aud.file_size
   ext = '.ogg'
   if aud.mime_type == 'audio/mp3':
@@ -308,7 +312,7 @@ def audio(update: Update, context: CallbackContext):
   logger.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
   if (Config.getboolean('Download', 'Audio', fallback=True)):
     download_file(context.bot, 'audio', fid, '%s %s - %s%s' % (fid, aud.performer, aud.title, ext), convid=ci)
-  log_file('audio', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('audio', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
 def photo(update: Update, context: CallbackContext):
@@ -324,6 +328,7 @@ def photo(update: Update, context: CallbackContext):
       maxsize = photo.file_size
       pho = photo
   fid = pho.file_id
+  uid = pho.file_unique_id
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
@@ -346,7 +351,7 @@ def photo(update: Update, context: CallbackContext):
         sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
   download_file(context.bot, 'photo', fid, fid + '.jpg', on_finish=process_photo, convid=ci)
-  log_file('photo', maxsize, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('photo', maxsize, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
 def cmd_download_photo(update: Update, context: CallbackContext):
@@ -361,11 +366,12 @@ def voice(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   voi = update.message.voice
   fid = voi.file_id
+  uid = voi.file_unique_id
   size = voi.file_size
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
   logger.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   download_file(context.bot, 'voice', fid, fid + '.opus', convid=ci)
-  log_file('voice', size, attr, fid, conversation=update.message.chat, user=update.message.from_user)
+  log_file('voice', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
 def status(update: Update, context: CallbackContext):
