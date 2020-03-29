@@ -12,6 +12,7 @@ import os.path
 import subprocess
 from cachetools import TTLCache, cached
 from pathlib import Path
+import unicodedata
 
 from configuration import Config
 from database import dbcur_queryone, with_cursor, cache_on_commit
@@ -171,19 +172,21 @@ downloads_per_chat = KeyCounters()
 
 def download_file(bot, fid, filename, convid, on_finish=None):
   def df():
+    downloads_per_chat.dec(convid)
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
-    if os.path.isfile(filename):
-      logger.info('file ' + filename + ' already exists')
-      if on_finish:
-        on_finish(filename)
-      return
     f = bot.getFile(file_id=fid)
     logger.info('File info %s' % repr(f.__dict__))
+    existingpath = is_file_downloaded(f.file_unique_id)
+    if existingpath:
+      logger.info('file %s already downloaded as %s', filename, existingpath)
+      if on_finish:
+        on_finish(existingpath)
+      return
     logger.info('downloading file %s from %s, %d/%d pending' % (filename, f.file_path, downloads_per_chat[convid], downloadqueue.qsize()))
     f.download(custom_path=filename, timeout=120)
+    log_file_download(f.file_unique_id, filename, f.file_size)
     if on_finish:
       on_finish(filename)
-    downloads_per_chat.dec(convid)
     sleep(1)
   pending_chat = downloads_per_chat[convid]
   if pending_chat > 20:
@@ -267,7 +270,7 @@ def sticker(update: Update, context: CallbackContext):
     conversation=update.message.chat, user=update.message.from_user)
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-  download_file(context.bot, st.file_id, 'stickers2/%s/%s.%s' % (fix_name(set), fix_name(st.file_unique_id), 'tgs' if st.is_animated else 'webp'), convid=ci);
+  download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(unicodedata.name(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
 
 @update_wrap
 def video(update: Update, context: CallbackContext):

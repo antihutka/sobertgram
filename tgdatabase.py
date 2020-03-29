@@ -169,6 +169,21 @@ def log_file_text(cur, fileid, texttype, filetext):
 
 @retry(5)
 @with_cursor
+def is_file_downloaded(cur, uniqid):
+  cur.execute("SELECT `path` FROM `downloaded_files` WHERE `unique_id` = %s", (uniqid,))
+  r = cur.fetchone()
+  if r:
+    return r[0]
+  else:
+    return None
+
+@retry(5)
+@with_cursor
+def log_file_download(cur, uniqid, fpath, fsize):
+  cur.execute("INSERT INTO `downloaded_files` (`unique_id`, `path`, `size`) VALUES (%s, %s, %s)", (uniqid, fpath, fsize))
+
+@retry(5)
+@with_cursor
 def rand_sticker(cur, emoji = None):
   if emoji:
     emoji = lookup_sticker_emoji(emoji)
