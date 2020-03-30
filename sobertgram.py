@@ -592,6 +592,40 @@ def cmd_badword(update: Update, context: CallbackContext):
       add_badword(ci, badword, froi)
       cmdreply(context.bot, ci, '< Bad word %s added >' % (repr(badword)))
 
+import magic
+
+@run_async
+@update_wrap
+def cmd_migrate_stickers(update: Update, context: CallbackContext):
+  msg_split = update.message.text.split(' ', 1)
+  cnt = int(msg_split[1]) if len(msg_split) > 1 else 1
+  logger.info('Migrating %d stickers' % cnt)
+  for (fid, set, emoji) in get_stickers_to_migrate(cnt):
+    logger.info('Migrating %s' % fid)
+    fil = context.bot.get_file(fid)
+    logger.info('File info: %s' % repr(fil.__dict__))
+    origpath = 'stickers/' + fix_name(fid) + ' ' + fix_name(set) + '.webp'
+    if is_file_downloaded(fil.file_unique_id):
+      logger.info('File already downloaded')
+      if os.path.isfile(origpath):
+        logger.info('Original file exists')
+        os.remove(origpath)
+      update_sticker_id(fid, fil.file_unique_id)
+    elif os.path.isfile(origpath):
+      logger.info('Original %s exists', origpath)
+      mimetype = magic.from_file(origpath, mime=True)
+      extension = 'tgs' if mimetype == 'application/gzip' else 'webp'
+      newpath = 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(fil.file_unique_id), fix_name(emojiname(emoji)), extension)
+      logger.info('Type %s, New path is %s', mimetype, newpath)
+      Path(newpath).parent.mkdir(parents=True, exist_ok=True)
+      os.rename(origpath, newpath)
+      log_file_download(fil.file_unique_id, newpath, fil.file_size)
+      update_sticker_id(fid, fil.file_unique_id)
+    else:
+      logger.info('Original %s missing, updating %s->%s', origpath, fid, fil.file_unique_id)
+      update_sticker_id(fid, fil.file_unique_id)
+  cmdreply(context.bot, update.message.chat_id, "Done")
+
 def thr_console():
   for line in sys.stdin:
     pass
@@ -634,5 +668,6 @@ dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
 dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
 dispatcher.add_handler(CommandHandler('badword', cmd_badword), 3)
 dispatcher.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
+dispatcher.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
 
 updater.start_polling(timeout=60, read_latency=30)
