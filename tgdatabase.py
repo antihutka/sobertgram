@@ -305,7 +305,7 @@ def delete_badword(cur, convid, badword):
 
 @with_cursor
 def get_stickers_to_migrate(cur, cnt):
-  cur.execute("SELECT file_id, set_name, emoji FROM stickers WHERE file_id NOT IN (SELECT file_unique_id FROM file_ids) LIMIT %s", (cnt,))
+  cur.execute("SELECT file_id, set_name, emoji FROM stickers WHERE length(file_id) > 22 LIMIT %s", (cnt,))
   return cur.fetchall()
 
 @with_cursor
