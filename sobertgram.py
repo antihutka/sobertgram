@@ -600,16 +600,22 @@ def cmd_migrate_stickers(update: Update, context: CallbackContext):
   msg_split = update.message.text.split(' ', 1)
   cnt = int(msg_split[1]) if len(msg_split) > 1 else 1
   logger.info('Migrating %d stickers' % cnt)
+  already_downloaded = 0
+  deleted = 0
+  moved = 0
+  missing = 0
   for (fid, set, emoji) in get_stickers_to_migrate(cnt):
     logger.info('Migrating %s' % fid)
     fil = context.bot.get_file(fid)
     logger.info('File info: %s' % repr(fil.__dict__))
     origpath = 'stickers/' + fix_name(fid) + ' ' + fix_name(set) + '.webp'
     if is_file_downloaded(fil.file_unique_id):
+      already_downloaded += 1
       logger.info('File already downloaded')
       if os.path.isfile(origpath):
         logger.info('Original file exists')
         os.remove(origpath)
+        deleted += 1
       update_sticker_id(fid, fil.file_unique_id)
     elif os.path.isfile(origpath):
       logger.info('Original %s exists', origpath)
@@ -621,10 +627,12 @@ def cmd_migrate_stickers(update: Update, context: CallbackContext):
       os.rename(origpath, newpath)
       log_file_download(fil.file_unique_id, newpath, fil.file_size)
       update_sticker_id(fid, fil.file_unique_id)
+      moved += 1
     else:
       logger.info('Original %s missing, updating %s->%s', origpath, fid, fil.file_unique_id)
       update_sticker_id(fid, fil.file_unique_id)
-  cmdreply(context.bot, update.message.chat_id, "Done")
+      missing += 1
+  cmdreply(context.bot, update.message.chat_id, "Done [%d/%d/%d/%d]" % (already_downloaded, deleted, moved, missing))
 
 def thr_console():
   for line in sys.stdin:
