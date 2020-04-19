@@ -407,6 +407,9 @@ def status(update: Update, context: CallbackContext):
   log_status(upd, conversation=update.message.chat, user=update.message.from_user)
 
 def cmdreply(bot, ci, text):
+  if option_get_float(ci, 'silent_commands', 0, 0) > 0:
+    logger.info('=> [silent] %s', text)
+    return
   logger.info('=> %s' % text)
   msg = bot.sendMessage(chat_id=ci, text=text)
   command_replies.add(msg.message_id)
@@ -439,6 +442,9 @@ def cmd_ratelimit(inf):
 @cmd_ratelimit
 def start(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
+  if option_get_float(ci, 'silent_commands', 0, 0) > 0:
+    logger.info('ignoring /start')
+    return
   logger.info('%s/%d /start' % (fro, ci))
   sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
@@ -458,7 +464,7 @@ def cmd_option_get(update: Update, context: CallbackContext):
     cmdreply(context.bot, ci, '<option %s is set to %s>' % (opt, val))
 
 def option_valid(o, v):
-  if o == 'sticker_prob' or o == 'reply_prob' or o == 'admin_only':
+  if o == 'sticker_prob' or o == 'reply_prob' or o == 'admin_only' or o == 'silent_commands':
     if re.match(r'^([0-9]+|[0-9]*\.[0-9]+)$', v):
       return True
     else:
@@ -606,7 +612,11 @@ def cmd_migrate_stickers(update: Update, context: CallbackContext):
   missing = 0
   for (fid, set, emoji) in get_stickers_to_migrate(cnt):
     logger.info('Migrating %s' % fid)
-    fil = context.bot.get_file(fid)
+    try:
+      fil = context.bot.get_file(fid)
+    except:
+      logger.exception("Can't get file, skipping")
+      continue
     logger.info('File info: %s' % repr(fil.__dict__))
     origpath = 'stickers/' + fix_name(fid) + ' ' + fix_name(set) + '.webp'
     if is_file_downloaded(fil.file_unique_id):
