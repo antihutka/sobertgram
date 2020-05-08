@@ -472,18 +472,18 @@ def option_valid(o, v):
   else:
     return False
 
-def user_is_admin(bot, convid, userid):
+def user_is_admin(bot, convid, userid, owner_only):
   if convid > 0:
     return True
   member = bot.get_chat_member(convid, userid)
-  if member.status == 'administrator' or member.status == 'creator':
+  if (member.status == 'administrator' and not owner_only) or member.status == 'creator':
     return True
   return False
 
 def admin_check(bot, convid, userid):
   if option_get_float(convid, 'admin_only', 0, 0) == 0:
     return True
-  return user_is_admin(bot, convid, userid)
+  return user_is_admin(bot, convid, userid, option_get_float(convid, 'admin_only', 0, 0) >= 2)
 
 @update_wrap
 @inqueue(cmdqueue)
