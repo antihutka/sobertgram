@@ -3,6 +3,7 @@ import sys
 import MySQLdb
 import configparser
 import traceback
+from tabulate import tabulate
 
 Config = configparser.ConfigParser()
 Config.read(sys.argv[1])
@@ -40,10 +41,10 @@ def update_step(db, cur):
   if not chats_to_update:
     print("No chats to update")
     return 60
-  for i in chats_to_update:
-    print("Chat: %16d New: %6d / %6d updated: %6d minutes ago score: %4.2f uniq: %.3f len: %.1f %s" % i)
-  convid = chats_to_update[0][0]
-  chatname = chats_to_update[0][6]
+  #for i in chats_to_update:
+  #  print("Chat: %16d New: %6d / %6d updated: %6d minutes ago score: %4.2f uniq: %.3f len: %.1f %s" % i)
+  print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'minutes', 'score', 'uniq', 'len', 'chatname']))
+  (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, chatname) = chats_to_update[0]
   print("Updating stats for %d %s" % (convid, chatname))
   cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0), COUNT(*), AVG(LENGTH(text)) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
     "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
@@ -52,7 +53,7 @@ def update_step(db, cur):
   msgcount = cur.fetchone()[0]
   print('avglen %f' % (avglen))
   db.commit()
-  #print("Updated uniqueness of chat %s from %.3f to %.3f count=%d countv=%d" % (chatname, chats_to_update[0][5], uniqueness, msgcount, msgcount_v))
+  #print("Updated uniqueness of chat %s from %.3f to %.3f count=%d countv=%d" % (chatname, old_uniq, uniqueness, msgcount, msgcount_v))
   cur.execute("UPDATE chat_uniqueness SET "
     "uniqueness=%s, "
     "last_count=%s, "
@@ -63,15 +64,14 @@ def update_step(db, cur):
   db.commit()
   endtime = time.time()
   elaps = endtime-starttime
-  score = chats_to_update[0][4]
   if score < 0.9:
     varsleep = varsleep + 1
   if score > 1.1 and varsleep > 10:
     varsleep = varsleep - 1
-  sleeptime = (elaps * 10 + varsleep) / max(0.25, chats_to_update[0][4])
+  sleeptime = (elaps * 10 + varsleep) / max(0.25, score)
   #print("Done updating stats for %d %s (took %.3f) (sleeping for %6.3f)" % (convid, chatname, elaps, sleeptime))
   print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f avglen %.1f took %.3f slp %6.3f" %
-       (chatname, chats_to_update[0][5], uniqueness, float(uniqueness) - chats_to_update[0][5], msgcount_v, msgcount, chats_to_update[0][4], avglen, elaps, sleeptime))
+       (chatname, old_uniq, uniqueness, float(uniqueness) - old_uniq, msgcount_v, msgcount, score, avglen, elaps, sleeptime))
   return sleeptime
 
 while True:
