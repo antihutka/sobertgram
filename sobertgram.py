@@ -132,7 +132,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     logger.warning('Warning: reply queue full, dropping reply')
     return
   send_typing_notification(bot, ci)
-  badwords = get_badwords(ci)
+  badwords = get_badwords(ci) + get_badwords(0)
   badwords.sort(key=len, reverse=True)
   def rf(txt):
     omsg = msg = txt
