@@ -412,7 +412,7 @@ def cmdreply(bot, ci, text):
     return
   logger.info('=> %s' % text)
   msg = bot.sendMessage(chat_id=ci, text=text)
-  command_replies.add(msg.message_id)
+  command_replies.add((ci, msg.message_id))
 
 @update_wrap
 def givesticker(update: Update, context: CallbackContext):
@@ -552,7 +552,7 @@ def cmd_pq(update: Update, context: CallbackContext):
   if (replid in pqed_messages) or (already_pqd(repl.text)):
     cmdreply(context.bot, ci, '<message already forwarded>')
     return
-  if replid in command_replies:
+  if (ci, replid) in command_replies:
     cmdreply(context.bot, ci, '<that is a silly thing to forward!>')
     return
   if pq_limit_check(froi) >= 5:
