@@ -30,7 +30,7 @@ SELECT * FROM (
 ) b WHERE score > 0.1 OR uniqueness < 0 ORDER BY score DESC LIMIT 10;
 """
 
-varsleep = 450
+varsleep = 120
 
 def update_step(db, cur):
   global varsleep
@@ -46,12 +46,12 @@ def update_step(db, cur):
   print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'minutes', 'score', 'uniq', 'len', 'chatname']))
   (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, chatname) = chats_to_update[0]
   print("Updating stats for %d %s" % (convid, chatname))
-  cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0), COUNT(*), AVG(LENGTH(text)) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
+  cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0), COUNT(*), COALESCE(AVG(LENGTH(text)),0) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
     "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
   (uniqueness, msgcount_v, avglen) = cur.fetchone()
   cur.execute("SELECT message_count FROM chat_counters WHERE convid = %s AND sent = 0", (convid,))
   msgcount = cur.fetchone()[0]
-  print('avglen %f' % (avglen))
+  #print('avglen %f' % (avglen))
   db.commit()
   #print("Updated uniqueness of chat %s from %.3f to %.3f count=%d countv=%d" % (chatname, old_uniq, uniqueness, msgcount, msgcount_v))
   cur.execute("UPDATE chat_uniqueness SET "
