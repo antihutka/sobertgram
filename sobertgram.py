@@ -13,6 +13,7 @@ import subprocess
 from cachetools import TTLCache, cached
 from pathlib import Path
 import unicodedata
+import options
 
 from configuration import Config
 from database import dbcur_queryone, with_cursor, cache_on_commit
@@ -141,7 +142,7 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     logger.info(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
     if omsg != msg:
       logger.info(' (original)=> %s' % (omsg,))
-    sp = option_get_float(ci, 'sticker_prob', 0.9, 0)
+    sp = options.get_option(ci, 'sticker_prob')
     if (not replyto) and replyto_cond and (replyto_cond != last_msg_id[ci]):
       reply_to = replyto_cond
     else:
@@ -222,14 +223,14 @@ def should_reply(bot, msg, ci, txt = None):
     txt = msg.text
   if txt and (Config.get('Chat', 'Keyword') in txt.lower()):
     return True and can_send_message(bot, ci)
-  rp = option_get_float(ci, 'reply_prob', 1, 0.02)
+  rp = options.get_option(ci, 'reply_prob')
   return (uniform(0, 1) < rp) and can_send_message(bot, ci)
 
 def update_wrap(f):
   def wrapped(update: Update, context: CallbackContext):
     if not update.message:
       return
-    is_blacklisted = option_get_float(update.message.chat_id, 'blacklisted', 0, 0) > 0
+    is_blacklisted = options.get_option(update.message.chat_id, 'blacklisted') > 0
     if is_blacklisted:
       return
     return f(update = update, context = context)
@@ -407,7 +408,7 @@ def status(update: Update, context: CallbackContext):
   log_status(upd, conversation=update.message.chat, user=update.message.from_user)
 
 def cmdreply(bot, ci, text):
-  if option_get_float(ci, 'silent_commands', 0, 0) > 0:
+  if options.get_option(ci, 'silent_commands') > 0:
     logger.info('=> [silent] %s', text)
     return
   logger.info('=> %s' % text)
@@ -442,7 +443,7 @@ def cmd_ratelimit(inf):
 @cmd_ratelimit
 def start(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
-  if option_get_float(ci, 'silent_commands', 0, 0) > 0:
+  if options.get_option(ci, 'silent_commands') > 0:
     logger.info('ignoring /start')
     return
   logger.info('%s/%d /start' % (fro, ci))
@@ -457,20 +458,11 @@ def cmd_option_get(update: Update, context: CallbackContext):
     cmdreply(context.bot, ci, '< invalid syntax >')
     return
   opt = txt[1]
-  val = option_get_raw(ci, opt)
-  if val == None:
-    cmdreply(context.bot, ci, '<option %s not set>' % (opt,))
-  else:
-    cmdreply(context.bot, ci, '<option %s is set to %s>' % (opt, val))
-
-def option_valid(o, v):
-  if o == 'sticker_prob' or o == 'reply_prob' or o == 'admin_only' or o == 'silent_commands':
-    if re.match(r'^([0-9]+|[0-9]*\.[0-9]+)$', v):
-      return True
-    else:
-      return False
-  else:
-    return False
+  if opt not in options.user_options:
+    cmdreply(context.bot, ci, '<option %s unknown>' % (opt))
+    return
+  val = options.get_option(ci, opt)
+  cmdreply(context.bot, ci, '<option %s is set to %s>' % (opt, val))
 
 def user_is_admin(bot, convid, userid, owner_only):
   if convid > 0:
@@ -481,9 +473,9 @@ def user_is_admin(bot, convid, userid, owner_only):
   return False
 
 def admin_check(bot, convid, userid):
-  if option_get_float(convid, 'admin_only', 0, 0) == 0:
+  if options.get_option(convid, 'admin_only') == 0:
     return True
-  return user_is_admin(bot, convid, userid, option_get_float(convid, 'admin_only', 0, 0) >= 2)
+  return user_is_admin(bot, convid, userid, options.get_option(convid, 'admin_only') >= 2)
 
 @update_wrap
 @inqueue(cmdqueue)
@@ -499,15 +491,15 @@ def cmd_option_set(update: Update, context: CallbackContext):
      return
   opt = txt[1]
   val = txt[2]
-  if option_valid(opt, val):
-    option_set(ci, opt, val)
+  try:
+    options.set_option(ci, opt, val)
     cmdreply(context.bot, ci, '<option %s set to %s>' % (opt, val))
-  else:
-    cmdreply(context.bot, ci, '<invalid option or value>')
+  except options.OptionError as oe:
+    cmdreply(context.bot, ci, '<%s>' % (str(oe),))
 
 @update_wrap
 def cmd_option_flush(update: Update, context: CallbackContext):
-  options.clear()
+  options.optioncache.clear()
   badword_cache.clear()
   cmdreply(context.bot, update.message.chat_id, '<done>')
 

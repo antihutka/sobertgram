@@ -16,7 +16,7 @@ option_types = {
 }
 
 default_user = {
-  'sticker_prob': 0.8,
+  'sticker_prob': 0.9,
   'reply_prob': 1.0,
   'admin_only': 0,
   'silent_commands': 0,
@@ -74,7 +74,7 @@ def set_option(convid, option_name, value, user_only = True):
   try:
     value_parsed = option_types[option_name](value)
   except ValueError:
-    raise OptionError("Can't parse value %s as %s" % (repr(option_name), option_types[option_name]))
+    raise OptionError("Can't parse value %s as %s" % (repr(option_name), option_types[option_name].__name__))
   current_value = get_option(convid, option_name)
   if current_value == value_parsed:
     print('value matches')

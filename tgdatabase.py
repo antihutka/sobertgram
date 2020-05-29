@@ -7,7 +7,6 @@ from database import dbcur_queryone, with_cursor, cache_on_commit
 logger = logging.getLogger(__name__)
 known_stickers = set()
 logqueue = Queue()
-options = {}
 sticker_emojis = None
 
 chatinfo_last = {}
@@ -156,7 +155,7 @@ def log_migration(cur, newid, oldid):
   try:
     cur.execute("INSERT INTO `chat_migrations` (`newid`, `oldid`) VALUES (%s, %s)", (newid, oldid))
     cur.execute("UPDATE `badwords` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
-    cur.execute("UPDATE `options` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
+    cur.execute("UPDATE `options2` SET `convid`=%s WHERE `convid`=%s", (newid, oldid))
   except:
     logger.exception("Migration failed:")
 
@@ -247,37 +246,6 @@ def cmd_limit_check(cur, convid):
   cur.execute("SELECT COUNT(*) FROM commands WHERE convid=%s AND date > DATE_SUB(NOW(), INTERVAL 10 MINUTE) AND id > (SELECT MAX(id) - 1000 FROM commands)", (convid,))
   res = cur.fetchone()[0]
   return res
-
-@retry(5)
-@with_cursor
-def option_set(cur, convid, option, value):
-  cur.execute("REPLACE INTO `options` (`convid`, `option`, `value`) VALUES (%s,%s, %s)", (convid, option, str(value)))
-  options[(convid, option)] = value
-
-@retry(5)
-@with_cursor
-def option_get_raw(cur, convid, option):
-  if (convid, option) in options:
-    return options[(convid, option)]
-  cur.execute("SELECT `value` FROM `options` WHERE `convid` = %s AND `option` = %s", (convid, option))
-  row = cur.fetchone()
-  if row != None:
-    options[(convid, option)] = row[0]
-    return row[0]
-  else:
-    return None
-
-def option_get_float(convid, option, def_u, def_g):
-  try:
-    oraw = option_get_raw(convid, option)
-    if oraw != None:
-      return float(oraw)
-  except:
-    logger.exception("Error getting option %s for conv %d" % (option, convid))
-  if convid > 0:
-    return def_u
-  else:
-    return def_g
 
 badword_cache = {}
 
