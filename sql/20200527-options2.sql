@@ -9,3 +9,5 @@ CREATE TABLE `options2` (
 `is_hidden` INT NULL DEFAULT NULL ,
 PRIMARY KEY (`convid`)) ENGINE = ROCKSDB; 
 
+ALTER TABLE `options2` ADD `send_as_reply` INT NULL DEFAULT NULL AFTER `is_hidden`;
+

@@ -3,13 +3,14 @@ from cachetools.keys import hashkey
 
 from database import with_cursor
 
-user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands']
+user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands', 'send_as_reply']
 
 option_types = {
   'sticker_prob': float,
   'reply_prob': float,
   'admin_only': int,
   'silent_commands': int,
+  'send_as_reply': int,
   'is_bad': int,
   'is_hidden': int,
   'blacklisted': int
@@ -20,6 +21,7 @@ default_user = {
   'reply_prob': 1.0,
   'admin_only': 0,
   'silent_commands': 0,
+  'send_as_reply': 1,
   'blacklisted': 0,
   'is_bad': 0,
   'is_hidden': 0
@@ -30,12 +32,13 @@ default_group = {
   'reply_prob': 0.02,
   'admin_only': 0,
   'silent_commands': 0,
+  'send_as_reply': 1,
   'blacklisted': 0,
   'is_bad': 0,
   'is_hidden': 0
 }
 
-user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands']
+user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands', 'send_as_reply']
 
 optioncache = LRUCache(1024)
 

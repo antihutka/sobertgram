@@ -143,7 +143,8 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     if omsg != msg:
       logger.info(' (original)=> %s' % (omsg,))
     sp = options.get_option(ci, 'sticker_prob')
-    if (not replyto) and replyto_cond and (replyto_cond != last_msg_id[ci]):
+    orpl = options.get_option(ci, 'send_as_reply')
+    if (not replyto) and replyto_cond and orpl > 0 and (replyto_cond != last_msg_id[ci] or orpl > 1):
       reply_to = replyto_cond
     else:
       reply_to = replyto
