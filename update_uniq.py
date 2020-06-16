@@ -61,7 +61,10 @@ def update_step(db, cur):
     "avg_len=%s, "
     "last_update = CURRENT_TIMESTAMP "
     "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, convid))
-  if is_bad and (not is_blacklisted) and msgcount_v > 300 and avglen > 300:
+  if is_bad and (not is_blacklisted) and (
+    (msgcount_v > 300 and avglen > 300) or 
+    (msgcount_v > 1000 and uniqueness < 0.01)
+    ):
     print("!!!! Blacklisting chat!")
     cur.execute("UPDATE options2 SET blacklisted=1 WHERE convid=%s", (convid,))
   db.commit()

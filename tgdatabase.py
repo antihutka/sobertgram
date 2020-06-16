@@ -74,7 +74,7 @@ def log_file_id(cur, file_id, file_unique_id):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None, learn_sticker = False):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
@@ -91,7 +91,7 @@ def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = Non
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
   if fwduser or fwdchat:
     cur.execute("INSERT INTO `forwarded_from` (`id`, `fwd_userinfo_id`, `fwd_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (fwduser_id, fwdchat_id))
-  if file_unique_id and file_unique_id not in known_stickers:
+  if learn_sticker and file_unique_id and file_unique_id not in known_stickers:
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_unique_id,))
     (exists,) = cur.fetchone()
     if exists == 0:

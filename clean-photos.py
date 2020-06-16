@@ -41,7 +41,7 @@ def delete_dbentry(cursor, fid):
   #cursor.execute("SELECT COUNT(*) FROM downloaded_files WHERE unique_id=%s", (fid,))
   #print(cursor.fetchall())
 
-minage = 35
+minage = 10
 
 @with_cursor
 def check_files(cursor):

@@ -1,4 +1,4 @@
-from cachetools import cached, LRUCache
+from cachetools import cached, TTLCache
 from cachetools.keys import hashkey
 
 from database import with_cursor
@@ -40,7 +40,7 @@ default_group = {
 
 user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands', 'send_as_reply']
 
-optioncache = LRUCache(1024)
+optioncache = TTLCache(1024, 60*60)
 
 @cached(optioncache)
 @with_cursor

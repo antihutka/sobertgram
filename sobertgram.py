@@ -275,7 +275,8 @@ def sticker(update: Update, context: CallbackContext):
   logger.info("sticker data: %s" % repr(st.__dict__))
   log_sticker(0, emo, st.file_id, st.file_unique_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
-    conversation=update.message.chat, user=update.message.from_user)
+    conversation=update.message.chat, user=update.message.from_user,
+    learn_sticker = (options.get_option(ci, 'is_bad') < 1))
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
