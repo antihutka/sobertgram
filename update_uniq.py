@@ -63,6 +63,7 @@ def update_step(db, cur):
     "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, convid))
   if is_bad and (not is_blacklisted) and (
     (msgcount_v > 300 and avglen > 300) or 
+    (msgcount_v > 1000 and avglen > 100) or
     (msgcount_v > 1000 and uniqueness < 0.01)
     ):
     print("!!!! Blacklisting chat!")
