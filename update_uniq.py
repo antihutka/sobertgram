@@ -22,9 +22,9 @@ def add_new_chats(db, cur):
 
 get_chats_q = """
 SELECT * FROM (
-  SELECT convid, message_count, new_messages, age, CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7)  AS DOUBLE) AS score, COALESCE(uniqueness, -1) AS uniqueness, avg_len, is_bad, blacklisted, chatname
+  SELECT convid, message_count, new_messages, age, CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7)  AS DOUBLE) AS score, COALESCE(uniqueness, -1) AS uniqueness, avg_len, goodness, badness, is_bad, blacklisted, chatname
   FROM (
-    SELECT convid, message_count, message_count - last_count AS new_messages, TIMESTAMPDIFF(MINUTE, last_update, CURRENT_TIMESTAMP) AS age, uniqueness, avg_len, is_bad, blacklisted, long_name as chatname
+    SELECT convid, message_count, message_count - last_count AS new_messages, TIMESTAMPDIFF(MINUTE, last_update, CURRENT_TIMESTAMP) AS age, uniqueness, avg_len, goodness, badness, is_bad, blacklisted, long_name as chatname
     FROM chat_uniqueness LEFT JOIN chat_counters USING (convid) LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo_v USING (chatinfo_id) LEFT JOIN options2 USING (convid) WHERE sent=0 
   ) a
 ) b WHERE score > 0.1 OR uniqueness < 0 ORDER BY score DESC LIMIT 10;
@@ -43,12 +43,20 @@ def update_step(db, cur):
     return 60
   #for i in chats_to_update:
   #  print("Chat: %16d New: %6d / %6d updated: %6d minutes ago score: %4.2f uniq: %.3f len: %.1f %s" % i)
-  print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'minutes', 'score', 'uniq', 'len', 'bad', 'blacklisted', 'chatname']))
-  (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, is_bad, is_blacklisted, chatname) = chats_to_update[0]
+  print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'minutes', 'score', 'uniq', 'len', 'Gss', 'Bss', 'bad', 'blacklisted', 'chatname']))
+  (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, _goodness, _badness, is_bad, is_blacklisted, chatname) = chats_to_update[0]
   print("Updating stats for %d %s" % (convid, chatname))
-  cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0), COUNT(*), COALESCE(AVG(LENGTH(text)),0) FROM chat LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
-    "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
-  (uniqueness, msgcount_v, avglen) = cur.fetchone()
+  cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0) AS uniqueness, "
+              "       COUNT(*) AS msgcount_v, "
+              "       COALESCE(AVG(LENGTH(text)),0) AS msglen, "
+              "       SUM(IF(bad_messages.hash IS NOT NULL, 1, 0)) / COUNT(*) AS badness, "
+              "       SUM(IF(good_messages.hash IS NOT NULL, 1, 0)) / COUNT(*) AS goodness "
+              "FROM chat "
+              "LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
+              "LEFT JOIN bad_messages USING (hash) "
+              "LEFT JOIN good_messages USING (hash) "
+              "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
+  (uniqueness, msgcount_v, avglen, badness, goodness) = cur.fetchone()
   cur.execute("SELECT message_count FROM chat_counters WHERE convid = %s AND sent = 0", (convid,))
   msgcount = cur.fetchone()[0]
   #print('avglen %f' % (avglen))
@@ -59,8 +67,10 @@ def update_step(db, cur):
     "last_count=%s, "
     "last_count_valid=%s, "
     "avg_len=%s, "
+    "goodness=%s, "
+    "badness=%s, "
     "last_update = CURRENT_TIMESTAMP "
-    "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, convid))
+    "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, goodness, badness, convid))
   if is_bad and (not is_blacklisted) and (
     (msgcount_v > 300 and avglen > 300) or 
     (msgcount_v > 1000 and avglen > 100) or
@@ -77,8 +87,8 @@ def update_step(db, cur):
     varsleep = varsleep - 1
   sleeptime = (elaps * 10 + varsleep) / max(0.25, score)
   #print("Done updating stats for %d %s (took %.3f) (sleeping for %6.3f)" % (convid, chatname, elaps, sleeptime))
-  print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f avglen %.1f took %.3f slp %6.3f" %
-       (chatname, old_uniq, uniqueness, float(uniqueness) - old_uniq, msgcount_v, msgcount, score, avglen, elaps, sleeptime))
+  print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f avglen %.1f g/b %.3f/%.3f took %.3f slp %6.3f" %
+       (chatname, old_uniq, uniqueness, float(uniqueness) - old_uniq, msgcount_v, msgcount, score, avglen, goodness, badness, elaps, sleeptime))
   return sleeptime
 
 while True:
