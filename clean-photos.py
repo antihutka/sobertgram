@@ -17,12 +17,12 @@ random.shuffle(files)
 print("%d photos found" % len(files))
 
 def getcounts(cursor, fid):
-  cursor.execute("SELECT SUM(IF(COALESCE(is_bad, 0) = 0, 1, 0)), SUM(IF(COALESCE(is_bad, 0) > 0, 1, 0)) FROM chat_files LEFT JOIN options2 USING (convid) WHERE file_id=%s", (fid,))
+  cursor.execute("SELECT SUM(IF(COALESCE(is_bad, 0) = 0 AND COALESCE(delete_photos, 0) = 0, 1, 0)), SUM(IF(COALESCE(is_bad, 0) > 0 OR COALESCE(delete_photos, 0) > 0, 1, 0)) FROM chat_files LEFT JOIN options2 USING (convid) WHERE file_id=%s", (fid,))
   r = cursor.fetchone()
   return r
 
 def getcounts_u(cursor, fid):
-  cursor.execute("SELECT SUM(IF(COALESCE(is_bad, 0) = 0, 1, 0)), SUM(IF(COALESCE(is_bad, 0) > 0, 1, 0)) FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN options2 USING (convid) WHERE file_unique_id=%s", (fid,))
+  cursor.execute("SELECT SUM(IF(COALESCE(is_bad, 0) = 0 AND COALESCE(delete_photos, 0) = 0, 1, 0)), SUM(IF(COALESCE(is_bad, 0) > 0 OR COALESCE(delete_photos, 0) > 0, 1, 0)) FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN options2 USING (convid) WHERE file_unique_id=%s", (fid,))
   r = cursor.fetchone()
   return r
 
