@@ -73,8 +73,9 @@ def update_step(db, cur):
     "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, goodness, badness, convid))
   if is_bad and (not is_blacklisted) and (
     (msgcount_v > 300 and avglen > 300) or 
-    (msgcount_v > 1000 and avglen > 100) or
-    (msgcount_v > 1000 and uniqueness < 0.01)
+    (msgcount_v > 1000 and avglen > 105) or
+    (msgcount_v > 1000 and uniqueness < 0.01) or
+    (msgcount_v > 1000 and badness > 0.2)
     ):
     print("!!!! Blacklisting chat!")
     cur.execute("UPDATE options2 SET blacklisted=1 WHERE convid=%s", (convid,))

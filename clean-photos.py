@@ -42,6 +42,7 @@ def delete_dbentry(cursor, fid):
   #print(cursor.fetchall())
 
 minage = 7
+minsize = 16384
 
 @with_cursor
 def check_files(cursor):
@@ -82,10 +83,10 @@ def check_files(cursor):
       newcnt += 1
       continue
     #print('%s %s %s' % (fileid, good, bad))
-    if (good > 0):
+    if (good > 0) and (filesize > minsize):
       goodcnt += 1
       continue
-    assert bad > 0
+    assert bad > 0 or filesize <= minsize
 
     proccnt += 1
     delsize += filesize

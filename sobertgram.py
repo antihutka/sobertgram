@@ -357,7 +357,8 @@ def photo(update: Update, context: CallbackContext):
       return
     log_file_text(fid, 'ocr', ocrtext)
     def process_photo_reply(_context):
-      put(ci, ocrtext)
+      if options.get_option(ci, 'is_bad') <= 0:
+        put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
         logger.info('sending reply')
         sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
