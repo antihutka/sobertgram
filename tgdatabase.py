@@ -1,5 +1,6 @@
 from queue import Queue
 import logging
+from cachetools import cached, TTLCache
 
 from util import retry, inqueue
 from database import dbcur_queryone, with_cursor, cache_on_commit
@@ -226,6 +227,12 @@ def db_stats(cur, convid):
   actgrp = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid < 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
   quality = dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
   return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality
+
+@cached(TTLCache(1024, 15*60))
+@retry(3)
+@with_cursor
+def get_rel_uniq(cur, convid):
+  return dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
 
 @inqueue(logqueue)
 @retry(10)

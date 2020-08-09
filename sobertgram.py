@@ -17,6 +17,7 @@ import options
 
 from configuration import Config
 from database import dbcur_queryone, with_cursor, cache_on_commit
+import tgdatabase
 from tgdatabase import *
 import threads
 from httpnn import HTTPNN
@@ -273,10 +274,13 @@ def sticker(update: Update, context: CallbackContext):
   logger.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
   logger.info("sticker data: %s" % repr(st.__dict__))
+  reluniq = tgdatabase.get_rel_uniq(ci)
+  can_learn = (options.get_option(ci, 'is_bad') < 1) and (reluniq is not None) and (reluniq > 0.5)
+  logger.info("uniq/canlearn %s %s", reluniq, can_learn)
   log_sticker(0, emo, st.file_id, st.file_unique_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user,
-    learn_sticker = (options.get_option(ci, 'is_bad') < 1))
+    learn_sticker = can_learn)
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
@@ -356,9 +360,9 @@ def photo(update: Update, context: CallbackContext):
     if ocrtext == "":
       return
     log_file_text(fid, 'ocr', ocrtext)
+    if options.get_option(ci, 'is_bad') > 0:
+      ocrtext = ocrtext[-100:]
     def process_photo_reply(_context):
-      if options.get_option(ci, 'is_bad') > 0:
-        ocrtext = ocrtext[-100:]
       put(ci, ocrtext)
       if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
         logger.info('sending reply')
