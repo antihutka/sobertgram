@@ -71,8 +71,9 @@ def update_step(db, cur):
     "badness=%s, "
     "last_update = CURRENT_TIMESTAMP "
     "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, goodness, badness, convid))
-  if not is_bad and (
-    (uniqueness < 0.15)
+  if (is_bad is None) and (
+    (uniqueness < 0.15) or
+    (badness > 0.1)
     ):
     print("!!!! Marking chat as bad")
     cur.execute("INSERT INTO options2 (convid, is_bad, is_hidden) VALUES (%s, 1, 1) ON DUPLICATE KEY UPDATE is_bad=1, is_hidden=1", (convid,))
@@ -80,6 +81,7 @@ def update_step(db, cur):
     (msgcount_v > 300 and avglen > 300) or 
     (msgcount_v > 1000 and avglen > 105) or
     (msgcount_v > 1000 and uniqueness < 0.01) or
+    (msgcount_v > 250  and badness > 0.5) or
     (msgcount_v > 1000 and badness > 0.2)
     ):
     print("!!!! Blacklisting chat!")
@@ -93,6 +95,7 @@ def update_step(db, cur):
     varsleep = varsleep - 1
   sleeptime = (elaps * 10 + varsleep) / max(0.25, score)
   #print("Done updating stats for %d %s (took %.3f) (sleeping for %6.3f)" % (convid, chatname, elaps, sleeptime))
+  print((chatname, old_uniq, uniqueness, msgcount_v, msgcount, score, avglen, goodness, badness, elaps, sleeptime))
   print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f avglen %.1f g/b %.3f/%.3f took %.3f slp %6.3f" %
        (chatname, old_uniq, uniqueness, float(uniqueness) - old_uniq, msgcount_v, msgcount, score, avglen, goodness, badness, elaps, sleeptime))
   return sleeptime
