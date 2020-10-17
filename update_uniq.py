@@ -22,7 +22,18 @@ def add_new_chats(db, cur):
 
 get_chats_q = """
 SELECT * FROM (
-  SELECT convid, message_count, new_messages, age, CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7)  AS DOUBLE) AS score, COALESCE(uniqueness, -1) AS uniqueness, avg_len, goodness, badness, is_bad, blacklisted, chatname
+  SELECT convid,
+         message_count,
+         new_messages,
+         age,
+         CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7)  AS DOUBLE) AS score,
+         COALESCE(uniqueness, -1) AS uniqueness,
+         avg_len,
+         goodness,
+         badness,
+         is_bad,
+         blacklisted,
+         chatname
   FROM (
     SELECT convid, message_count, message_count - last_count AS new_messages, TIMESTAMPDIFF(MINUTE, last_update, CURRENT_TIMESTAMP) AS age, uniqueness, avg_len, goodness, badness, is_bad, blacklisted, long_name as chatname
     FROM chat_uniqueness LEFT JOIN chat_counters USING (convid) LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo_v USING (chatinfo_id) LEFT JOIN options2 USING (convid) WHERE sent=0 
