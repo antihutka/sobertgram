@@ -512,6 +512,24 @@ def cmd_option_flush(update: Update, context: CallbackContext):
   cmdreply(context.bot, update.message.chat_id, '<done>')
 
 @update_wrap
+@inqueue(cmdqueue)
+@cmd_ratelimit
+def cmd_option_list(update: Update, context: CallbackContext):
+  ci = update.message.chat_id
+  repl = 'Options:'
+  for opt in options.options.values():
+    if not opt.settable:
+      continue
+    repl += "\n========\n%s (%s)" % (opt.name, opt.type.__name__)
+    if opt.default_user == opt.default_group:
+      repl += "\nDefault: %s" % opt.default_user
+    else:
+      repl += "\nDefault: users: %s, groups: %s" % (opt.default_user, opt.default_group)
+    repl += "\nCurrent value: %s" % (options.get_option(ci, opt.name))
+    repl += "\n%s" % (opt.description)
+  cmdreply(context.bot, update.message.chat_id, repl)
+
+@update_wrap
 def logcmd(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
@@ -681,6 +699,7 @@ dispatcher.add_handler(CommandHandler('givesticker', givesticker), 3)
 dispatcher.add_handler(CommandHandler('option_get', cmd_option_get), 3)
 dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
+dispatcher.add_handler(CommandHandler('option_list', cmd_option_list), 3)
 dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
 dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
 dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
