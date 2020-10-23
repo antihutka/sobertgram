@@ -8,7 +8,7 @@ ChatOption = namedtuple('ChatOption', 'name type settable default_user default_g
 options_list = [
   ChatOption(name='sticker_prob',    type=float, settable=True,  default_user=0.9, default_group=0.0,  description='Probability of converting a single emoji message to a random corresponding sticker. (possibly NSFW)'),
   ChatOption(name='reply_prob',      type=float, settable=True,  default_user=1.0, default_group=0.02, description='Probability of replying to any text message.'),
-  ChatOption(name='admin_only',      type=int,   settable=True,  default_user=0,   default_group=0,    description='Limit setting options to admins when set to 1, owners when set to 2.'),
+  ChatOption(name='admin_only',      type=int,   settable=True,  default_user=0,   default_group=0,    description='Limit setting options and badwords to admins when set to 1, owners when set to 2.'),
   ChatOption(name='silent_commands', type=int,   settable=True,  default_user=0,   default_group=0,    description='Suppress replies to all commands.'),
   ChatOption(name='send_as_reply',   type=int,   settable=True,  default_user=1,   default_group=1,    description='Send messages as replies. 0 - never, 1 - when there are multiple messages, 2 - always.'),
   ChatOption(name='filter_username', type=int,   settable=True,  default_user=0,   default_group=0,    description="Add the user's/chat's username to every chat's badword list."),
