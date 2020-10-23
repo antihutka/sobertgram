@@ -504,7 +504,7 @@ def cmd_option_flush(update: Update, context: CallbackContext):
 @cmd_ratelimit
 def cmd_option_list(update: Update, context: CallbackContext):
   ci = update.message.chat_id
-  repl = 'Options:'
+  repl = 'Options, use /option_set <name> <value> to change:'
   for opt in options.options.values():
     if not opt.settable:
       continue
