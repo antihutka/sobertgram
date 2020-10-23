@@ -466,7 +466,7 @@ def cmd_option_get(update: Update, context: CallbackContext):
     cmdreply(context.bot, ci, '< invalid syntax >')
     return
   opt = txt[1]
-  if opt not in options.user_options:
+  if not options.options[opt].settable:
     cmdreply(context.bot, ci, '<option %s unknown>' % (opt))
     return
   val = options.get_option(ci, opt)
