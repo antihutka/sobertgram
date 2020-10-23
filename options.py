@@ -13,7 +13,9 @@ option_types = {
   'send_as_reply': int,
   'is_bad': int,
   'is_hidden': int,
-  'blacklisted': int
+  'blacklisted': int,
+  'filter_username': int,
+  'global_badwords': int
 }
 
 default_user = {
@@ -24,7 +26,9 @@ default_user = {
   'send_as_reply': 1,
   'blacklisted': 0,
   'is_bad': 0,
-  'is_hidden': 0
+  'is_hidden': 0,
+  'filter_username': 0,
+  'global_badwords': 0
 }
 
 default_group = {
@@ -35,10 +39,12 @@ default_group = {
   'send_as_reply': 1,
   'blacklisted': 0,
   'is_bad': 0,
-  'is_hidden': 0
+  'is_hidden': 0,
+  'filter_username': 0,
+  'global_badwords': 0
 }
 
-user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands', 'send_as_reply']
+user_options = ['sticker_prob', 'reply_prob', 'admin_only', 'silent_commands', 'send_as_reply', 'filter_username', 'global_badwords']
 
 optioncache = TTLCache(1024, 15*60)
 

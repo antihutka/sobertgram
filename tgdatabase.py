@@ -309,6 +309,13 @@ def db_get_photo(cur, fid):
   cur.execute("SELECT COUNT(*) FROM chat_files WHERE type = 'photo' AND file_id = %s", (fid,))
   return cur.fetchone()[0]
 
+@cached(TTLCache(1024, 15*60))
+@retry(5)
+@with_cursor
+def get_filtered_usernames(cur):
+  cur.execute("SELECT DISTINCT username FROM options2 LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo USING (chatinfo_id) WHERE filter_username > 0 AND username IS NOT NULL LIMIT 10")
+  return ['@' + x[0].lower() for x in cur]
+
 def loadstickers():
   global sticker_emojis
   sticker_emojis = set(get_sticker_emojis())
