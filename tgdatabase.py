@@ -316,6 +316,15 @@ def get_filtered_usernames(cur):
   cur.execute("SELECT DISTINCT username FROM options2 LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo USING (chatinfo_id) WHERE filter_username > 0 AND username IS NOT NULL LIMIT 10")
   return ['@' + x[0].lower() for x in cur]
 
+@cached(TTLCache(1024, 15*60))
+@retry(5)
+@with_cursor
+def get_global_badwords(cur, mincount):
+  cur.execute("SELECT badword,COUNT(*) "
+              "FROM badwords LEFT JOIN options2 USING (convid) LEFT JOIN (SELECT convid, message_count FROM chat_counters WHERE sent=0) cnt USING (convid) "
+              "WHERE COALESCE(is_bad, 0) <= 0 AND message_count >= 1000 GROUP BY badword HAVING COUNT(*) >= 3;")
+  return [x[0] for x in cur]
+
 def loadstickers():
   global sticker_emojis
   sticker_emojis = set(get_sticker_emojis())
