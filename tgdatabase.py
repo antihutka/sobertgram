@@ -322,7 +322,7 @@ def get_filtered_usernames(cur):
 def get_global_badwords(cur, mincount):
   cur.execute("SELECT badword,COUNT(*) "
               "FROM badwords LEFT JOIN options2 USING (convid) LEFT JOIN (SELECT convid, message_count FROM chat_counters WHERE sent=0) cnt USING (convid) "
-              "WHERE COALESCE(is_bad, 0) <= 0 AND message_count >= 1000 GROUP BY badword HAVING COUNT(*) >= 3;")
+              "WHERE COALESCE(is_bad, 0) <= 0 AND message_count >= 1000 GROUP BY badword HAVING COUNT(*) >= %s;", (mincount,))
   return [x[0] for x in cur]
 
 def loadstickers():
