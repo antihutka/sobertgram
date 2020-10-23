@@ -460,21 +460,6 @@ def start(update: Update, context: CallbackContext):
   logger.info('%s/%d /start' % (fro, ci))
   sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
-@update_wrap
-@cmd_ratelimit
-def cmd_option_get(update: Update, context: CallbackContext):
-  ci = update.message.chat_id
-  txt = update.message.text.split()
-  if (len(txt) != 2):
-    cmdreply(context.bot, ci, '< invalid syntax >')
-    return
-  opt = txt[1]
-  if not options.options[opt].settable:
-    cmdreply(context.bot, ci, '<option %s unknown>' % (opt))
-    return
-  val = options.get_option(ci, opt)
-  cmdreply(context.bot, ci, '<option %s is set to %s>' % (opt, val))
-
 def user_is_admin(bot, convid, userid, owner_only):
   if convid > 0:
     return True
@@ -541,9 +526,8 @@ def logcmd(update: Update, context: CallbackContext):
 
 helpstring = """Talk to me and I'll reply, or add me to a group and I'll talk once in a while. I don't talk in groups too much, unless you mention my name.
 Commands:
-/option_set reply_prob <value> - set my reply probability in this chat when my name is not mentioned. Defaults to 0.02 in groups. (0-1.0)
-/option_set sticker_prob <value> - set the probability of sending a (often NSFW) sticker in place of an emoji. Defaults to 0 in groups.
-/option_set admin_only <0|1> - when set to 1, only admins can change options and bad words
+/option_list - Show all configurable options
+/option_set <option_name> <value> - Set an option
 /badword bad_word - add or remove bad_word from the per channel bad word list. Lists bad words when used without an argument.
 /pq - forward message to %s
 /stats - print group/user stats
@@ -704,7 +688,6 @@ dispatcher.add_handler(MessageHandler(Filters.status_update, status), 2)
 
 dispatcher.add_handler(CommandHandler('start', start), 3)
 dispatcher.add_handler(CommandHandler('givesticker', givesticker), 3)
-dispatcher.add_handler(CommandHandler('option_get', cmd_option_get), 3)
 dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 dispatcher.add_handler(CommandHandler('option_list', cmd_option_list), 3)
