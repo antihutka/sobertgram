@@ -3,7 +3,7 @@ import logging
 from cachetools import cached, TTLCache
 
 from util import retry, inqueue
-from database import dbcur_queryone, with_cursor, cache_on_commit
+from database import dbcur_queryone, dbcur_queryrow, with_cursor, cache_on_commit
 
 logger = logging.getLogger(__name__)
 known_stickers = set()
@@ -217,16 +217,17 @@ def already_pqd(cur, txt):
 @retry(5)
 @with_cursor
 def db_stats(cur, convid):
-  recv = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
-  sent = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid,), 0)
-  firstdate = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid,))
-  rank = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM chat_counters WHERE SIGN(convid) = SIGN(%s) AND sent = 0 AND message_count > %s", (convid, recv))
-  trecv = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_recv'");
-  tsent = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
-  actusr = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid > 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
-  actgrp = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid < 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
-  quality = dbcur_queryone(cur, "SELECT uniqueness_rel FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,))
-  return recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality
+  s = {}
+  s['recv'] = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
+  s['sent'] = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid,), 0)
+  s['firstdate'] = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid,))
+  s['rank'] = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM chat_counters WHERE SIGN(convid) = SIGN(%s) AND sent = 0 AND message_count > %s", (convid, s['recv']))
+  s['trecv'] = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_recv'");
+  s['tsent'] = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
+  s['actusr'] = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid > 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
+  s['actgrp'] = dbcur_queryone(cur, "SELECT COUNT(DISTINCT convid) FROM `chat_counters` WHERE convid < 0 AND last_date > DATE_SUB(NOW(), INTERVAL 48 HOUR)")
+  s['quality'], s['badness'] = dbcur_queryrow(cur, "SELECT uniqueness_rel, badness FROM chat_uniqueness LEFT JOIN chat_uniqueness_rel USING (convid)  WHERE convid = %s AND last_count_valid >= 100", (convid,), default=(None,None))
+  return s
 
 @cached(TTLCache(1024, 15*60))
 @retry(3)

@@ -572,12 +572,19 @@ def cmd_pq(update: Update, context: CallbackContext):
 @cmd_ratelimit
 def cmd_stats(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
-  recv, sent, firstdate, rank, trecv, tsent, actusr, actgrp, quality = db_stats(ci)
-  quality_s = ("%.0f%%" % (quality*100)) if quality else "Unknown"
-  cmdreply(context.bot, ci, 'Chat stats for %s:\nMessages received: %d (%d total)\nMessages sent: %d (%d total)\nFirst message: %s\nGroup/user rank: %d\n'
-                    'Chat quality: %s\n'
-                    'Users/groups active in the last 48 hours: %d/%d'
-                    % (fron, recv, trecv, sent, tsent, firstdate.isoformat() if firstdate else 'Never', rank, quality_s, actusr, actgrp))
+  s = db_stats(ci)
+  quality_s = ("%.0f%%" % (s['quality']*100)) if s['quality'] else "Unknown"
+  lin = []
+  lin.append('Chat stats for %s:' % fron)
+  lin.append('Messages received: %d (%d total)' % (s['recv'], s['trecv']))
+  lin.append('Messages sent: %d (%d total)' % (s['sent'], s['tsent']))
+  lin.append('First message: %s' % (s['firstdate'].isoformat() if s['firstdate'] else 'Never'))
+  lin.append('Group/user rank: %d' % s['rank'])
+  lin.append('Chat quality: %s' % quality_s)
+  if s['badness'] is not None:
+    lin.append('Chat badness: %.1f%%' % (s['badness'] * 100))
+  lin.append('Users/groups active in the last 48 hours: %d/%d' % (s['actusr'], s['actgrp']))
+  cmdreply(context.bot, ci, '\n'.join(lin))
 
 @update_wrap
 @cmd_ratelimit

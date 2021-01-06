@@ -16,6 +16,13 @@ def dbcur_queryone(cur, query, args = (), default = None):
     return row[0]
   return default
 
+def dbcur_queryrow(cur, query, args = (), default = None):
+  cur.execute(query, args)
+  row = cur.fetchone()
+  if row is None:
+    return default
+  return row
+
 cursor_oncommit = WeakKeyDictionary()
 
 def with_cursor(infun):
