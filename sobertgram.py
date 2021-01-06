@@ -480,7 +480,7 @@ def cmd_option_set(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
-    cmdreply(context.bot, ci, '< invalid syntax, use /option_set <option> <value> >')
+    cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.')
     return
   if not admin_check(context.bot, ci, update.message.from_user.id):
      cmdreply(context.bot, ci, '< you are not allowed to use this command >')
