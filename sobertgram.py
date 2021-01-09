@@ -468,10 +468,10 @@ def user_is_admin(bot, convid, userid, owner_only):
     return True
   return False
 
-def admin_check(bot, convid, userid):
-  if options.get_option(convid, 'admin_only') == 0:
+def admin_check(bot, convid, userid, option_name='admin_only'):
+  if options.get_option(convid, option_name) == 0:
     return True
-  return user_is_admin(bot, convid, userid, options.get_option(convid, 'admin_only') >= 2)
+  return user_is_admin(bot, convid, userid, options.get_option(convid, option_name) >= 2)
 
 @update_wrap
 @inqueue(cmdqueue)
@@ -543,6 +543,11 @@ def cmd_help(update: Update, context: CallbackContext):
 @cmd_ratelimit
 def cmd_pq(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
+
+  if not admin_check(context.bot, ci, update.message.from_user.id, option_name='admin_only_pq'):
+     cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+     return
+
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != context.bot.id):
     cmdreply(context.bot, ci, '<send that as a reply to my message!>')
