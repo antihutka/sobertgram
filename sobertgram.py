@@ -135,9 +135,9 @@ def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, convers
     return
   send_typing_notification(bot, ci)
   badwords = get_badwords(ci) + get_badwords(0) + tgdatabase.get_filtered_usernames()
-  gbwcount = options.get_option(ci, 'global_badwords')
+  gbwcount = options.get_option(ci, 'default_badwords')
   if gbwcount >= 3:
-    badwords += tgdatabase.get_global_badwords(gbwcount)
+    badwords += tgdatabase.get_default_badwords(gbwcount)
   badwords.sort(key=len, reverse=True)
   def rf(txt):
     omsg = msg = txt
@@ -600,10 +600,10 @@ def cmd_badword(update: Update, context: CallbackContext):
   bw = get_badwords(ci)
   if len(msg_split) == 1:
     repl = 'Current bad words: %s (%d)' % (', '.join((repr(w) for w in bw)), len(bw))
-    gbw = options.get_option(ci, 'global_badwords')
+    gbw = options.get_option(ci, 'default_badwords')
     if gbw >= 3:
-      gbws = tgdatabase.get_global_badwords(gbw)
-      repl += "\nGlobal bad words: %s (%d)" % (', '.join(repr(w) for w in gbws), len(gbws))
+      gbws = tgdatabase.get_default_badwords(gbw)
+      repl += "\nDefault bad words: %s (%d)" % (', '.join(repr(w) for w in gbws), len(gbws))
     cmdreply(context.bot, ci, repl)
   else:
     if not admin_check(context.bot, ci, froi):

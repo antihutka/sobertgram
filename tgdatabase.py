@@ -320,7 +320,7 @@ def get_filtered_usernames(cur):
 @cached(TTLCache(1024, 15*60))
 @retry(5)
 @with_cursor
-def get_global_badwords(cur, mincount):
+def get_default_badwords(cur, mincount):
   cur.execute("SELECT badword,COUNT(*) "
               "FROM badwords LEFT JOIN options2 USING (convid) LEFT JOIN (SELECT convid, message_count FROM chat_counters WHERE sent=0) cnt USING (convid) "
               "WHERE COALESCE(is_bad, 0) <= 0 AND message_count >= 1000 GROUP BY badword HAVING COUNT(*) >= %s;", (mincount,))
