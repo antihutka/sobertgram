@@ -1,4 +1,3 @@
-from telegram.ext.dispatcher import run_async
 from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
 from telegram import ChatAction, Update
 import telegram as T
@@ -32,6 +31,7 @@ Config.read(sys.argv[1])
 downloaded_files = set()
 downloadqueue = Queue()
 cmdqueue = Queue()
+miscqueue = Queue()
 pqed_messages = set()
 command_replies = set()
 last_msg_id = {}
@@ -93,7 +93,7 @@ def ireplace(old, new, text):
 def get_cache_key(bot, ci):
   return ci
 
-@cached(TTLCache(1024, 60), key = get_cache_key)
+@cached(TTLCache(1024, 120), key = get_cache_key)
 def can_send_message(bot, ci):
   self_member = bot.get_chat_member(ci, bot.id)
   if self_member.status == 'restricted' and not self_member.can_send_messages:
@@ -107,7 +107,7 @@ def can_send_sticker(bot, ci):
     return False
   return True
 
-@run_async
+@inqueue(miscqueue)
 def send_typing_notification(bot, convid):
   try:
     bot.sendChatAction(chat_id=convid, action=ChatAction.TYPING)
@@ -126,6 +126,9 @@ def try_reply(repfun, *args, **kwargs):
         logger.warning('Got BadRequest, trying without reply_to_message_id')
         del kwargs['reply_to_message_id']
         continue
+      if (isinstance(e, T.error.Unauthorized)):
+        logger.warning('Unauthorized, bot kicked from group?')
+        return None
       logger.exception('I got this error')
       return None
 
@@ -622,7 +625,7 @@ def cmd_badword(update: Update, context: CallbackContext):
 
 import magic
 
-@run_async
+@inqueue(miscqueue)
 @update_wrap
 def cmd_migrate_stickers(update: Update, context: CallbackContext):
   msg_split = update.message.text.split(' ', 1)
@@ -675,6 +678,7 @@ loadstickers()
 threads.start_thread(args=(downloadqueue, 'download'))
 threads.start_thread(args=(logqueue, 'dblogger'))
 threads.start_thread(args=(cmdqueue, 'commands'))
+threads.start_thread(args=(miscqueue, 'misc'))
 threads.start_thread(target=thr_console, args=())
 
 
