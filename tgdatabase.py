@@ -326,6 +326,24 @@ def get_default_badwords(cur, mincount):
               "WHERE COALESCE(is_bad, 0) <= 0 AND message_count >= 1000 GROUP BY badword HAVING COUNT(*) >= %s;", (mincount,))
   return [x[0] for x in cur]
 
+@cached(TTLCache(1024, 24*60*60))
+@with_cursor
+def userstats(cur, userid):
+  stats = {}
+  cur.execute("SELECT COALESCE(SUM(monthly_count),0) FROM chat_usermonthcounts WHERE userid=%s AND sent=0", (userid,))
+  stats["msgcount"] = int(cur.fetchone()[0])
+  cur.execute("SELECT COUNT(*) FROM (SELECT 1 FROM chat_usermonthcounts WHERE userid=%s AND sent=0 GROUP BY year, month HAVING SUM(monthly_count) > 100) a", (userid,))
+  stats["activemonths"] = cur.fetchone()[0]
+  cur.execute("SELECT COALESCE(SUM(IF(is_bad > 0, 1, 0)),0), COUNT(*) FROM (SELECT convid FROM chat_usermonthcounts WHERE userid=%s AND sent=0 GROUP BY convid HAVING SUM(monthly_count) > 100) a LEFT JOIN options2 USING (convid)", (userid,))
+  badchats, allchats = cur.fetchone()
+  stats["badchats"] = int(badchats)
+  stats["goodchats"] = int(allchats - badchats)
+  cur.execute("SELECT COUNT(*), SUM(IF(count<2,1,0)), SUM(bad_messages.hash IS NOT NULL) FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) LEFT JOIN bad_messages USING (hash) WHERE fromid=%s AND sent=0", (userid,))
+  allmsg, uniqmsg, badmsg = cur.fetchone()
+  stats["uniq"] = 0.0 if allmsg == 0 else float(uniqmsg/allmsg)
+  stats["bad"] = 0.0 if allmsg == 0 else float(badmsg/allmsg)
+  return stats
+
 def loadstickers():
   global sticker_emojis
   sticker_emojis = set(get_sticker_emojis())

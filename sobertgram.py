@@ -669,6 +669,14 @@ def cmd_migrate_stickers(update: Update, context: CallbackContext):
       missing += 1
   cmdreply(context.bot, update.message.chat_id, "Done [%d/%d/%d/%d]" % (already_downloaded, deleted, moved, missing))
 
+@inqueue(cmdqueue)
+@update_wrap
+def cmd_secret_for(update: Update, context: CallbackContext):
+  msg_split = update.message.text.split(' ', 1)
+  userid = update.message.from_user.id if len(msg_split) < 2 else int(msg_split[1])
+  stats = tgdatabase.userstats(userid)
+  cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats)
+
 def thr_console():
   for line in sys.stdin:
     pass
@@ -713,5 +721,6 @@ dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
 dispatcher.add_handler(CommandHandler('badword', cmd_badword), 3)
 dispatcher.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
 dispatcher.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
+dispatcher.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
 
 updater.start_polling(timeout=60, read_latency=30)
