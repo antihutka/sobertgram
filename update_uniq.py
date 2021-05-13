@@ -3,6 +3,7 @@ import sys
 import MySQLdb
 import configparser
 import traceback
+import datetime
 from tabulate import tabulate
 
 Config = configparser.ConfigParser()
@@ -41,7 +42,11 @@ SELECT * FROM (
 ) b WHERE score > 0.1 OR uniqueness < 0 ORDER BY score DESC LIMIT 10;
 """
 
-varsleep = 120
+def log_block(s):
+  with open("blocked.log", "a") as f:
+    print(datetime.datetime.now().isoformat() + " " + s, file=f)
+
+varsleep = 60
 
 def update_step(db, cur):
   global varsleep
@@ -83,12 +88,14 @@ def update_step(db, cur):
     "last_update = CURRENT_TIMESTAMP "
     "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, goodness, badness, convid))
   if (is_bad is None) and (
-    (uniqueness < 0.15) or
-    (badness > 0.1)
+    (msgcount_v > 80 and uniqueness < 0.15) or
+    (msgcount_v > 80 and badness > 0.1)
     ):
     print("!!!! Marking chat as bad")
     cur.execute("INSERT INTO options2 (convid, is_bad, is_hidden) VALUES (%s, 1, 1) ON DUPLICATE KEY UPDATE is_bad=1, is_hidden=1", (convid,))
+    log_block("BAD   count=%d uniq=%.4f badness=%.4f len=%.1f convid=%d chatname=%s" % (msgcount_v, uniqueness, badness, avglen, convid, chatname))
   if is_bad and (is_blacklisted is None) and (
+    (msgcount_v > 120 and avglen > 1000) or
     (msgcount_v > 300 and avglen > 300) or 
     (msgcount_v > 1000 and avglen > 105) or
     (msgcount_v > 1000 and uniqueness < 0.01) or
@@ -97,6 +104,7 @@ def update_step(db, cur):
     ):
     print("!!!! Blacklisting chat!")
     cur.execute("UPDATE options2 SET blacklisted=1 WHERE convid=%s", (convid,))
+    log_block("BLACK count=%d uniq=%.4f badness=%.4f len=%.1f convid=%d chatname=%s" % (msgcount_v, uniqueness, badness, avglen, convid, chatname))
   db.commit()
   endtime = time.time()
   elaps = endtime-starttime
