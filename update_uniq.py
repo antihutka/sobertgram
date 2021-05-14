@@ -60,12 +60,14 @@ def update_step(db, cur):
   #for i in chats_to_update:
   #  print("Chat: %16d New: %6d / %6d updated: %6d minutes ago score: %4.2f uniq: %.3f len: %.1f %s" % i)
   print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'minutes', 'score', 'uniq', 'len', 'Gss', 'Bss', 'bad', 'blacklisted', 'chatname']))
-  (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, _goodness, _badness, is_bad, is_blacklisted, chatname) = chats_to_update[0]
+  (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, _goodness, old_badness, is_bad, is_blacklisted, chatname) = chats_to_update[0]
+  if old_badness is None:
+    old_badness = 0
   print("Updating stats for %d %s" % (convid, chatname))
   cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0) AS uniqueness, "
               "       COUNT(*) AS msgcount_v, "
               "       COALESCE(AVG(LENGTH(text)),0) AS msglen, "
-              "       SUM(IF(bad_messages.hash IS NOT NULL, 1, 0)) / COUNT(*) AS badness, "
+              "       COALESCE(SUM(IF(bad_messages.hash IS NOT NULL, 1, 0)) / COUNT(*),0) AS badness, "
               "       SUM(IF(good_messages.hash IS NOT NULL, 1, 0)) / COUNT(*) AS goodness "
               "FROM chat "
               "LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
@@ -94,12 +96,13 @@ def update_step(db, cur):
     print("!!!! Marking chat as bad")
     cur.execute("INSERT INTO options2 (convid, is_bad, is_hidden) VALUES (%s, 1, 1) ON DUPLICATE KEY UPDATE is_bad=1, is_hidden=1", (convid,))
     log_block("BAD   count=%d uniq=%.4f badness=%.4f len=%.1f convid=%d chatname=%s" % (msgcount_v, uniqueness, badness, avglen, convid, chatname))
+  badcount = msgcount_v * badness
   if is_bad and (is_blacklisted is None) and (
     (msgcount_v > 120 and avglen > 1000) or
     (msgcount_v > 300 and avglen > 300) or 
     (msgcount_v > 1000 and avglen > 105) or
     (msgcount_v > 1000 and uniqueness < 0.01) or
-    (msgcount_v > 250  and badness > 0.5) or
+    (msgcount_v <= 1000 and badcount > 200) or
     (msgcount_v > 1000 and badness > 0.2)
     ):
     print("!!!! Blacklisting chat!")
@@ -110,13 +113,13 @@ def update_step(db, cur):
   elaps = endtime-starttime
   if score < 0.9:
     varsleep = varsleep + 1
-  if score > 1.1 and varsleep > 10:
+  if score > 1.1 and varsleep > 5:
     varsleep = varsleep - 1
   sleeptime = (elaps * 10 + varsleep) / max(0.25, score)
   #print("Done updating stats for %d %s (took %.3f) (sleeping for %6.3f)" % (convid, chatname, elaps, sleeptime))
   print((chatname, old_uniq, uniqueness, msgcount_v, msgcount, score, avglen, goodness, badness, elaps, sleeptime))
-  print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f avglen %.1f g/b %.3f/%.3f took %.3f slp %6.3f" %
-       (chatname, old_uniq, uniqueness, float(uniqueness) - old_uniq, msgcount_v, msgcount, score, avglen, goodness, badness, elaps, sleeptime))
+  print("Updated %s from %.3f to %.3f (%.6f) cnt=%d/%d score %.3f avglen %.1f g/b %.3f/%.3f dBad=%.6f took %.3f slp %6.3f" %
+       (chatname, old_uniq, uniqueness, float(uniqueness) - old_uniq, msgcount_v, msgcount, score, avglen, goodness, badness, float(badness) - float(old_badness), elaps, sleeptime))
   return sleeptime
 
 while True:
