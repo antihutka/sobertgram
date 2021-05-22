@@ -619,6 +619,9 @@ def cmd_badword(update: Update, context: CallbackContext):
     if badword in bw:
       delete_badword(ci, badword)
       cmdreply(context.bot, ci, '< Bad word %s removed >' % (repr(badword)))
+    elif any((existing in badword) for existing in bw):
+      ebws = list(filter(lambda e: e in badword, bw))
+      cmdreply(context.bot, ci, '< Bad word %s already matched by %s >' % (repr(badword), repr(ebws)))
     else:
       add_badword(ci, badword, froi)
       cmdreply(context.bot, ci, '< Bad word %s added >' % (repr(badword)))
