@@ -269,9 +269,12 @@ def get_badwords(cur, convid):
 
 @retry(5)
 @with_cursor
-def add_badword(cur, convid, badword, by):
+def add_badword(cur, convid, badword, by, remove):
   cur.execute("INSERT INTO `badwords` (`convid`, `badword`, `addedby`) VALUES (%s, %s, %s)", (convid, badword, by))
   badword_cache[convid].append(badword)
+  for r in remove:
+    cur.execute("DELETE FROM `badwords` WHERE `convid` = %s AND `badword` = %s", (convid, r))
+    badword_cache[convid].remove(r)
 
 @retry(5)
 @with_cursor

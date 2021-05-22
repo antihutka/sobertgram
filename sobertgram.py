@@ -623,8 +623,10 @@ def cmd_badword(update: Update, context: CallbackContext):
       ebws = list(filter(lambda e: e in badword, bw))
       cmdreply(context.bot, ci, '< Bad word %s already matched by %s >' % (repr(badword), repr(ebws)))
     else:
-      add_badword(ci, badword, froi)
-      cmdreply(context.bot, ci, '< Bad word %s added >' % (repr(badword)))
+      redundant = list(filter(lambda e: badword in e, bw))
+      add_badword(ci, badword, froi, remove = redundant)
+      rmsg = ("\n< Redundant badwords %s removed >" % repr(redundant)) if redundant else ""
+      cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg))
 
 import magic
 
