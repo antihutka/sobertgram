@@ -27,7 +27,7 @@ SELECT * FROM (
          message_count,
          new_messages,
          age,
-         CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7)  AS DOUBLE) AS score,
+         CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7) - IF(new_messages = 0 AND COALESCE(is_bad,0) > 0, 9, 0) AS DOUBLE) AS score,
          COALESCE(uniqueness, -1) AS uniqueness,
          avg_len,
          goodness,
@@ -97,9 +97,9 @@ def update_step(db, cur):
     cur.execute("INSERT INTO options2 (convid, is_bad, is_hidden) VALUES (%s, 1, 1) ON DUPLICATE KEY UPDATE is_bad=1, is_hidden=1", (convid,))
     log_block("BAD   count=%d uniq=%.4f badness=%.4f len=%.1f convid=%d chatname=%s" % (msgcount_v, uniqueness, badness, avglen, convid, chatname))
   badcount = msgcount_v * badness
+  totlen = avglen * msgcount_v
   if is_bad and (is_blacklisted is None) and (
-    (msgcount_v > 120 and avglen > 1000) or
-    (msgcount_v > 300 and avglen > 300) or 
+    (msgcount_v <= 1000 and totlen > 105 * 1000) or
     (msgcount_v > 1000 and avglen > 105) or
     (msgcount_v > 1000 and uniqueness < 0.01) or
     (msgcount_v <= 1000 and badcount > 200) or
