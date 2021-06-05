@@ -184,7 +184,6 @@ def download_file(bot, fid, filename, convid, on_finish=None):
     downloads_per_chat.dec(convid)
     Path(filename).parent.mkdir(parents=True, exist_ok=True)
     f = bot.getFile(file_id=fid)
-    logger.info('File info %s' % repr(f.__dict__))
     existingpath = is_file_downloaded(f.file_unique_id)
     if existingpath:
       logger.info('file %s already downloaded as %s', filename, existingpath)
@@ -279,7 +278,6 @@ def sticker(update: Update, context: CallbackContext):
   emo = st.emoji or ''
   logger.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
   put(ci, emo)
-  logger.info("sticker data: %s" % repr(st.__dict__))
   reluniq = tgdatabase.get_rel_uniq(ci)
   can_learn = (options.get_option(ci, 'is_bad') < 1) and (reluniq is not None) and (reluniq > 0.5)
   logger.info("uniq/canlearn %s %s", reluniq, can_learn)

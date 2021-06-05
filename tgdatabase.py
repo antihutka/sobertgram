@@ -84,7 +84,6 @@ def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = Non
   fromid = user.id
   if not sent:
     fid = log_file_id(cur, file_id, file_unique_id)
-    logger.info("FID logged: %d/%s/%s" % (fid, file_id, file_unique_id))
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
   rowid = cur.lastrowid
   cur.execute("INSERT INTO `chat_sticker` (`id`, `file_id`, `set_name`) VALUES (LAST_INSERT_ID(), %s, %s)", (file_id, set_name))
