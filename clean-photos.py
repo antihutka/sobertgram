@@ -15,11 +15,13 @@ Config.read(sys.argv[1])
 def getcounts(cursor, fid):
   cursor.execute("SELECT SUM(IF(COALESCE(is_bad, 0) = 0 AND COALESCE(delete_photos, 0) = 0, 1, 0)), SUM(IF(COALESCE(is_bad, 0) > 0 OR COALESCE(delete_photos, 0) > 0, 1, 0)) FROM chat_files LEFT JOIN options2 USING (convid) WHERE file_id=%s", (fid,))
   r = cursor.fetchone()
+  #print('getcounts %s->%s' % (fid, r))
   return r
 
 def getcounts_u(cursor, fid):
   cursor.execute("SELECT SUM(IF(COALESCE(is_bad, 0) = 0 AND COALESCE(delete_photos, 0) = 0, 1, 0)), SUM(IF(COALESCE(is_bad, 0) > 0 OR COALESCE(delete_photos, 0) > 0, 1, 0)) FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN options2 USING (convid) WHERE file_unique_id=%s", (fid,))
   r = cursor.fetchone()
+  #print('getcounts_u %s->%s' % (fid, r))
   return r
 
 def getage(cursor, fid):
@@ -41,7 +43,7 @@ minage = 7
 minsize = 16384
 
 @with_cursor
-def check_files(cursor, directory):
+def check_files(cursor, directory, extension):
   curtime = time.time()
   files = os.listdir(directory + '/')
   random.shuffle(files)
@@ -55,9 +57,9 @@ def check_files(cursor, directory):
   for filename in files:
     totalcnt += 1
     fullname = directory + '/' + filename
-    if not filename.endswith('.jpg'):
+    if not filename.endswith(extension):
       continue
-    fileid = filename[:-4]
+    fileid = filename[:-len(extension)]
     mtime = os.path.getmtime(fullname)
     filesize = os.path.getsize(fullname)
     fileage = (curtime-mtime)/60/60/24
@@ -97,4 +99,6 @@ def check_files(cursor, directory):
     os.remove(fullname)
     time.sleep(0.1)
 
-check_files('photo')
+check_files('photo', '.jpg')
+check_files('voice', '.opus')
+
