@@ -91,7 +91,8 @@ def update_step(db, cur):
     "WHERE convid=%s", (uniqueness, msgcount, msgcount_v, avglen, goodness, badness, convid))
   if (is_bad is None) and (
     (msgcount_v > 80 and uniqueness < 0.15) or
-    (msgcount_v > 80 and badness > 0.1)
+    (msgcount_v > 80 and badness > 0.1) or
+    (msgcount_v > 250 and msgcount_v < 5000 and badness > 0.05)
     ):
     print("!!!! Marking chat as bad")
     cur.execute("INSERT INTO options2 (convid, is_bad, is_hidden) VALUES (%s, 1, 1) ON DUPLICATE KEY UPDATE is_bad=1, is_hidden=1", (convid,))
