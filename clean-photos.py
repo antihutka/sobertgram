@@ -67,7 +67,7 @@ def check_files(cursor, directory, extension):
     if fileage < minage:
       newcnt += 1
       continue
-    if len(fileid) < 54:
+    if len(fileid) < 28:
       uniqidcnt += 1
       good, bad = getcounts_u(cursor, fileid)
       lastdate = getage_u(cursor, fileid)
