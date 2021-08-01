@@ -509,6 +509,8 @@ def cmd_option_list(update: Update, context: CallbackContext):
   for opt in options.options.values():
     if not opt.settable:
       continue
+    if not opt.visible:
+      continue
     repl += "\n========\n%s (%s)" % (opt.name, opt.type.__name__)
     if opt.default_user == opt.default_group:
       repl += "\nDefault: %s" % opt.default_user
