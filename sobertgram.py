@@ -697,7 +697,18 @@ threads.start_thread(target=thr_console, args=())
 
 nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
 nn.run_thread()
-nn.loop.set_default_executor(ThreadPoolExecutor(max_workers=4))
+nnexec = ThreadPoolExecutor(max_workers=4)
+nn.loop.set_default_executor(nnexec)
+altbackends = {}
+altbackends[0] = nn
+for section in (x for x in Config.sections() if x.startswith('Backend:')):
+  logger.info("Initializing backend %s", section)
+  annid = int(section.split(':')[1])
+  annurl = Config.get(section, 'Url')
+  ann = HTTPNN(annurl, Config.get('Backend', 'Keyprefix'))
+  ann.run_thread()
+  ann.loop.set_default_executor(nnexec)
+  altbackends[annid] = ann
 
 updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15}, use_context=True)
 dispatcher = updater.dispatcher
