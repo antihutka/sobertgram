@@ -37,16 +37,23 @@ command_replies = set()
 last_msg_id = {}
 logger = logging.getLogger(__name__)
 
+def get_backend_for(convid):
+  bid = options.get_option(convid, 'backend')
+  if bid not in backends:
+    bid = 0
+  return backends[bid]
 
 def put(convid, text):
-  nn.run_from_thread(nn.put, str(convid), text)
+  backend = get_backend_for(convid)
+  backend.run_from_thread(backend.put, str(convid), text)
 
-async def get_cb_as(callback, convid, bad_words):
-  text = await nn.get(str(convid), bad_words)
+async def get_cb_as(backend, callback, convid, bad_words):
+  text = await backend.get(str(convid), bad_words)
   await asyncio.get_event_loop().run_in_executor(None, callback, text)
 
 def get_cb(callback, convid, bad_words):
-  nn.run_from_thread(get_cb_as, callback, convid, bad_words)
+  backend = get_backend_for(convid)
+  backend.run_from_thread(get_cb_as, backend, callback, convid, bad_words)
 
 def user_name(user):
   if user.username:
@@ -133,7 +140,8 @@ def try_reply(repfun, *args, **kwargs):
       return None
 
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
-  if asyncio.run_coroutine_threadsafe(nn.queued_for_key(str(ci)), nn.loop).result() > 16:
+  backend = get_backend_for(ci)
+  if asyncio.run_coroutine_threadsafe(backend.queued_for_key(str(ci)), backend.loop).result() > 16:
     logger.warning('Warning: reply queue full, dropping reply')
     return
   send_typing_notification(bot, ci)
@@ -699,8 +707,8 @@ nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
 nn.run_thread()
 nnexec = ThreadPoolExecutor(max_workers=4)
 nn.loop.set_default_executor(nnexec)
-altbackends = {}
-altbackends[0] = nn
+backends = {}
+backends[0] = nn
 for section in (x for x in Config.sections() if x.startswith('Backend:')):
   logger.info("Initializing backend %s", section)
   annid = int(section.split(':')[1])
@@ -708,7 +716,7 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   ann = HTTPNN(annurl, Config.get('Backend', 'Keyprefix'))
   ann.run_thread()
   ann.loop.set_default_executor(nnexec)
-  altbackends[annid] = ann
+  backends[annid] = ann
 
 updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15}, use_context=True)
 dispatcher = updater.dispatcher
