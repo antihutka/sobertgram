@@ -219,7 +219,7 @@ def db_stats(cur, convid):
   s = {}
   s['recv'] = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=0", (convid,), 0)
   s['sent'] = dbcur_queryone(cur, "SELECT message_count FROM `chat_counters` WHERE convid = %s AND sent=1", (convid,), 0)
-  s['firstdate'] = dbcur_queryone(cur, "SELECT MIN(`date`) FROM `chat` WHERE convid = %s", (convid,))
+  s['firstdate'] = dbcur_queryone(cur, "SELECT `date` FROM `chat` WHERE `id`=(SELECT MIN(`id`) FROM `chat` WHERE convid = %s)", (convid,))
   s['rank'] = dbcur_queryone(cur, "SELECT COUNT(*)+1 FROM chat_counters WHERE SIGN(convid) = SIGN(%s) AND sent = 0 AND message_count > %s", (convid, s['recv']))
   s['trecv'] = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_recv'");
   s['tsent'] = dbcur_queryone(cur, "SELECT value FROM `counters` WHERE name='count_sent'");
