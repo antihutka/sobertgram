@@ -241,13 +241,28 @@ def should_reply(bot, msg, ci, txt = None):
   rp = options.get_option(ci, 'reply_prob')
   return (uniform(0, 1) < rp) and can_send_message(bot, ci)
 
+class BlacklistingLogger():
+  def __init__(self):
+    self.dropped = 0
+  def bad(self):
+    self.dropped += 1
+  def good(self):
+    if self.dropped == 0:
+      return
+    logger.info("[blacklist] %d events dropped", self.dropped)
+    self.dropped = 0
+
+blkLog = BlacklistingLogger()
+
 def update_wrap(f):
   def wrapped(update: Update, context: CallbackContext):
     if not update.message:
       return
     is_blacklisted = options.get_option(update.message.chat_id, 'blacklisted') > 0
     if is_blacklisted:
+      blkLog.bad()
       return
+    blkLog.good()
     return f(update = update, context = context)
   return wrapped
 
@@ -747,4 +762,4 @@ dispatcher.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
 dispatcher.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
 dispatcher.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
 
-updater.start_polling(timeout=60, read_latency=30)
+updater.start_polling(timeout=30, read_latency=15)
