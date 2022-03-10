@@ -26,6 +26,7 @@ SELECT * FROM (
   SELECT convid,
          message_count,
          new_messages,
+         bad_forgive,
          age,
          CAST((100 * new_messages)/(100+message_count) + age / (1440 * 7) - IF(new_messages = 0 AND COALESCE(is_bad,0) > 0, 9, 0) AS DOUBLE) AS score,
          COALESCE(uniqueness, -1) AS uniqueness,
@@ -36,7 +37,7 @@ SELECT * FROM (
          blacklisted,
          chatname
   FROM (
-    SELECT convid, message_count, message_count - last_count AS new_messages, TIMESTAMPDIFF(MINUTE, last_update, CURRENT_TIMESTAMP) AS age, uniqueness, avg_len, goodness, badness, is_bad, blacklisted, long_name as chatname
+    SELECT convid, message_count, message_count - last_count AS new_messages, bad_forgive, TIMESTAMPDIFF(MINUTE, last_update, CURRENT_TIMESTAMP) AS age, uniqueness, avg_len, goodness, badness, is_bad, blacklisted, long_name as chatname
     FROM chat_uniqueness LEFT JOIN chat_counters USING (convid) LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo_v USING (chatinfo_id) LEFT JOIN options2 USING (convid) WHERE sent=0 
   ) a
 ) b WHERE score > 0.1 OR uniqueness < 0 ORDER BY score DESC LIMIT 10;
@@ -59,21 +60,21 @@ def update_step(db, cur):
     return 60
   #for i in chats_to_update:
   #  print("Chat: %16d New: %6d / %6d updated: %6d minutes ago score: %4.2f uniq: %.3f len: %.1f %s" % i)
-  print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'minutes', 'score', 'uniq', 'len', 'Gss', 'Bss', 'bad', 'blacklisted', 'chatname']))
-  (convid, _msgcount, _newmsg, _minutes, score, old_uniq, _avg_len, _goodness, old_badness, is_bad, is_blacklisted, chatname) = chats_to_update[0]
+  print(tabulate(chats_to_update, headers=['convid', 'msgcount', 'newmsg', 'bad_forgive', 'minutes', 'score', 'uniq', 'len', 'Gss', 'Bss', 'bad', 'blacklisted', 'chatname']))
+  (convid, _msgcount, _newmsg, bad_forgive, _minutes, score, old_uniq, _avg_len, _goodness, old_badness, is_bad, is_blacklisted, chatname) = chats_to_update[0]
   if old_badness is None:
     old_badness = 0
   print("Updating stats for %d %s" % (convid, chatname))
   cur.execute("SELECT COALESCE(SUM(IF(count=1, 1, 0)) / COUNT(*), 0) AS uniqueness, "
               "       COUNT(*) AS msgcount_v, "
               "       COALESCE(AVG(LENGTH(text)),0) AS msglen, "
-              "       COALESCE(SUM(IF(bad_messages.hash IS NOT NULL, 1, 0)) / COUNT(*),0) AS badness, "
+              "       COALESCE((SUM(IF(bad_messages.hash IS NOT NULL, 1, 0)) - %s) / COUNT(*),0) AS badness, "
               "       SUM(IF(good_messages.hash IS NOT NULL, 1, 0)) / COUNT(*) AS goodness "
               "FROM chat "
               "LEFT JOIN chat_hashcounts ON hash=UNHEX(SHA2(text, 256)) "
               "LEFT JOIN bad_messages USING (hash) "
               "LEFT JOIN good_messages USING (hash) "
-              "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (convid,))
+              "WHERE chat.sent = 0 AND chat.convid=%s AND text NOT IN (SELECT DISTINCT emoji FROM stickers)", (bad_forgive, convid,))
   (uniqueness, msgcount_v, avglen, badness, goodness) = cur.fetchone()
   cur.execute("SELECT message_count FROM chat_counters WHERE convid = %s AND sent = 0", (convid,))
   msgcount = cur.fetchone()[0]
