@@ -17,7 +17,8 @@ options_list = [
   ChatOption(name='backend',          type=int,   settable=True,  default_user=0,   default_group=0,    visible=False, description=''),
   ChatOption(name='is_bad',           type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description=''),
   ChatOption(name='is_hidden',        type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description=''),
-  ChatOption(name='blacklisted',      type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description='')
+  ChatOption(name='blacklisted',      type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description=''),
+  ChatOption(name='user_blacklisted', type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description='')
 ]
 
 options = { o.name : o for o in options_list }

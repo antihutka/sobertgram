@@ -258,7 +258,7 @@ def update_wrap(f):
   def wrapped(update: Update, context: CallbackContext):
     if not update.message:
       return
-    is_blacklisted = options.get_option(update.message.chat_id, 'blacklisted') > 0
+    is_blacklisted = options.get_option(update.message.chat_id, 'blacklisted') > 0 or options.get_option(update.message.from_user.id, 'user_blacklisted') > 0
     if is_blacklisted:
       blkLog.bad()
       return
