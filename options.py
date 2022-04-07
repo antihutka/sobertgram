@@ -15,6 +15,7 @@ options_list = [
   ChatOption(name='filter_username',  type=int,   settable=True,  default_user=0,   default_group=0,    visible=True,  description="Add the user's/chat's username to every chat's badword list."),
   ChatOption(name='default_badwords', type=int,   settable=True,  default_user=10,  default_group=10,   visible=True,  description="Add words present in at least N other chats' badword lists to this chat's badword list. Disabled when set to less than 3."),
   ChatOption(name='ignore_files',     type=int,   settable=True,  default_user=0,   default_group=0,    visible=True,  description="Ignore all files (except stickers) sent in the chat."),
+  ChatOption(name='ignore_commands',  type=int,   settable=True,  default_user=0,   default_group=0,    visible=True,  description="Ignore some common non-standard commands used by some other bots."),
   ChatOption(name='backend',          type=int,   settable=True,  default_user=0,   default_group=0,    visible=False, description=''),
   ChatOption(name='is_bad',           type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description=''),
   ChatOption(name='is_hidden',        type=int,   settable=False, default_user=0,   default_group=0,    visible=False, description=''),

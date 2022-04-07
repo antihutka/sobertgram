@@ -23,6 +23,7 @@ from httpnn import HTTPNN
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from util import retry, inqueue, KeyCounters
+from commandfilter import is_nonstandard_command
 
 if len(sys.argv) != 2:
   raise Exception("Wrong number of arguments")
@@ -271,6 +272,8 @@ def msg(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
+  if options.get_option(ci, 'ignore_commands') > 0 and is_nonstandard_command(txt):
+    return
   last_msg_id[ci] = update.message.message_id
   getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   if should_reply(context.bot, update.message, ci):
