@@ -321,6 +321,8 @@ def video(update: Update, context: CallbackContext):
   attr = '%dx%d; length=%d; type=%s' % (vid.width, vid.height, vid.duration, vid.mime_type)
   size = vid.file_size
   logger.info('%s/%s: video, %d, %s, %s' % (fron, fro, size, fid, attr))
+  if options.get_option(ci, 'ignore_files') > 0:
+    return
   if (Config.getboolean('Download', 'Video', fallback=True)):
     download_file(context.bot, fid, 'video/' + fix_name(uid) + '.mp4', convid=ci)
   log_file('video', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
@@ -337,6 +339,8 @@ def document(update: Update, context: CallbackContext):
     name = '_unnamed_.mp4'
   attr = 'type=%s; name=%s' % (doc.mime_type, name)
   logger.info('%s/%s: document, %d, %s, %s' % (fron, fro, size, fid, attr))
+  if options.get_option(ci, 'ignore_files') > 0:
+    return
   if (Config.getboolean('Download', 'Document', fallback=True)):
     download_file(context.bot, fid, 'document/' + fix_name(uid) + ' ' + fix_name(name), convid=ci)
   log_file('document', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
@@ -353,6 +357,8 @@ def audio(update: Update, context: CallbackContext):
     ext = '.mp3'
   attr = 'type=%s; duration=%d; performer=%s; title=%s' % (aud.mime_type, aud.duration, aud.performer, aud.title)
   logger.info('%s/%s: audio, %d, %s, %s' % (fron, fro, size, fid, attr))
+  if options.get_option(ci, 'ignore_files') > 0:
+    return
   if (Config.getboolean('Download', 'Audio', fallback=True)):
     download_file(context.bot, fid, 'audio/' + '%s %s - %s%s' % (fix_name(uid), fix_name(aud.performer), fix_name(aud.title), fix_name(ext)), convid=ci)
   log_file('audio', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
@@ -395,6 +401,8 @@ def photo(update: Update, context: CallbackContext):
         logger.info('sending reply')
         sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
     updater.job_queue.run_once(process_photo_reply, 0)
+  if options.get_option(ci, 'ignore_files') > 0:
+    return
   download_file(context.bot, fid, 'photo/' + fix_name(uid) + '.jpg', on_finish=process_photo, convid=ci)
   log_file('photo', maxsize, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
@@ -415,6 +423,8 @@ def voice(update: Update, context: CallbackContext):
   size = voi.file_size
   attr = 'type=%s; duration=%d' % (voi.mime_type, voi.duration)
   logger.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
+  if options.get_option(ci, 'ignore_files') > 0:
+    return
   download_file(context.bot, fid, 'voice/' + fix_name(uid) + '.opus', convid=ci)
   log_file('voice', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
