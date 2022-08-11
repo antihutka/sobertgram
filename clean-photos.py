@@ -99,6 +99,15 @@ def check_files(cursor, directory, extension):
     os.remove(fullname)
     time.sleep(0.1)
 
+@with_cursor
+def check_file_text(cur):
+  cur.execute("SELECT file_id, type FROM file_text WHERE TIMESTAMPDIFF(DAY, date, CURRENT_TIMESTAMP) > 90 LIMIT 50000")
+  res = cur.fetchall()
+  print("Deleting %d old texts" % len(res))
+  for r in res:
+    cur.execute("DELETE FROM file_text WHERE file_id=%s AND type=%s", r)
+
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
 
+check_file_text()
