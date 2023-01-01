@@ -34,15 +34,14 @@ def with_cursor(infun):
       db=Config.get('Database', 'Database'),
       charset='utf8')
     try:
-      with db as cur:
-        cur = db.cursor()
-        cur.execute('SET NAMES utf8mb4')
-        ret = infun(cur, *args, **kwargs)
-        db.commit()
-        if cur in cursor_oncommit:
-          for act in cursor_oncommit[cur]:
-            act[0][act[1]] = act[2]
-        return ret
+      cur = db.cursor()
+      cur.execute('SET NAMES utf8mb4')
+      ret = infun(cur, *args, **kwargs)
+      db.commit()
+      if cur in cursor_oncommit:
+        for act in cursor_oncommit[cur]:
+          act[0][act[1]] = act[2]
+      return ret
     finally:
       db.close()
   return outfun
