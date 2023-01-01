@@ -18,6 +18,8 @@ class HTTPNN:
     return self.locks[key]
 
   async def queued_for_key(self, key):
+    if self.get_lock(key)._waiters is None:
+      return 0
     return len(self.get_lock(key)._waiters)
 
   @aretry(5)
