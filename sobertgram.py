@@ -776,3 +776,4 @@ dispatcher.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, 
 dispatcher.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
 
 updater.start_polling(timeout=30, read_latency=15)
+updater.idle()
