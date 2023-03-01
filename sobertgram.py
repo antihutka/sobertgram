@@ -1,5 +1,5 @@
-from telegram.ext import Updater, MessageHandler, Filters, CommandHandler, CallbackContext
-from telegram import ChatAction, Update
+from telegram.ext import Updater, MessageHandler, filters, CommandHandler, CallbackContext, ApplicationBuilder
+from telegram import Update
 import telegram as T
 import logging
 import re
@@ -118,7 +118,7 @@ def can_send_sticker(bot, ci):
 @inqueue(miscqueue)
 def send_typing_notification(bot, convid):
   try:
-    bot.sendChatAction(chat_id=convid, action=ChatAction.TYPING)
+    bot.sendChatAction(chat_id=convid, action=telegram.constants.ChatAction.TYPING)
   except Exception:
     logger.exception("Can't send typing action")
 
@@ -746,34 +746,32 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   ann.loop.set_default_executor(nnexec)
   backends[annid] = ann
 
-updater = Updater(token=Config.get('Telegram','Token'), request_kwargs={'read_timeout': 10, 'connect_timeout': 15}, use_context=True)
-dispatcher = updater.dispatcher
+app = ApplicationBuilder().token(Config.get('Telegram','Token')).build()
 
-dispatcher.add_handler(CommandHandler('me', me), 0)
-dispatcher.add_handler(MessageHandler(Filters.command, logcmd), 0)
+app.add_handler(CommandHandler('me', me), 0)
+app.add_handler(MessageHandler(filters.COMMAND, logcmd), 0)
 
-dispatcher.add_handler(MessageHandler(Filters.text & (~Filters.command), msg), 1)
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), msg), 1)
 
-dispatcher.add_handler(MessageHandler(Filters.sticker, sticker), 2)
-dispatcher.add_handler(MessageHandler(Filters.video, video), 2)
-dispatcher.add_handler(MessageHandler(Filters.document, document), 2)
-dispatcher.add_handler(MessageHandler(Filters.audio, audio), 2)
-dispatcher.add_handler(MessageHandler(Filters.photo, photo), 2)
-dispatcher.add_handler(MessageHandler(Filters.voice, voice), 2)
-dispatcher.add_handler(MessageHandler(Filters.status_update, status), 2)
+app.add_handler(MessageHandler(filters.Sticker(), sticker), 2)
+app.add_handler(MessageHandler(filters.VIDEO, video), 2)
+app.add_handler(MessageHandler(filters.Document(), document), 2)
+app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
+app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
+app.add_handler(MessageHandler(filters.VOICE, voice), 2)
+app.add_handler(MessageHandler(filters.StatusUpdate(), status), 2)
 
-dispatcher.add_handler(CommandHandler('start', start), 3)
-dispatcher.add_handler(CommandHandler('givesticker', givesticker), 3)
-dispatcher.add_handler(CommandHandler('option_set', cmd_option_set), 3)
-dispatcher.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
-dispatcher.add_handler(CommandHandler('option_list', cmd_option_list), 3)
-dispatcher.add_handler(CommandHandler('help', cmd_help), 3)
-dispatcher.add_handler(CommandHandler('pq', cmd_pq), 3)
-dispatcher.add_handler(CommandHandler('stats', cmd_stats), 3)
-dispatcher.add_handler(CommandHandler('badword', cmd_badword), 3)
-dispatcher.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
-dispatcher.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
-dispatcher.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=Filters.user(user_id=Config.getint('Admin', 'Admin'))), 3)
+app.add_handler(CommandHandler('start', start), 3)
+app.add_handler(CommandHandler('givesticker', givesticker), 3)
+app.add_handler(CommandHandler('option_set', cmd_option_set), 3)
+app.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
+app.add_handler(CommandHandler('option_list', cmd_option_list), 3)
+app.add_handler(CommandHandler('help', cmd_help), 3)
+app.add_handler(CommandHandler('pq', cmd_pq), 3)
+app.add_handler(CommandHandler('stats', cmd_stats), 3)
+app.add_handler(CommandHandler('badword', cmd_badword), 3)
+app.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
+app.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
+app.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 
-updater.start_polling(timeout=30, read_latency=15)
-updater.idle()
+app.run_polling()
