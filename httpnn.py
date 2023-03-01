@@ -43,6 +43,9 @@ class HTTPNN:
     async with self.get_lock(key):
       return await self.get_(key, bad_words)
 
+  def initialize2(self):
+    self.client = aiohttp.ClientSession(timeout = aiohttp.ClientTimeout(1800))
+
   async def initialize(self):
     self.client = aiohttp.ClientSession(loop = self.loop, timeout = aiohttp.ClientTimeout(1800))
 

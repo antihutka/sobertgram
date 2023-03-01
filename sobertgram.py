@@ -10,6 +10,7 @@ from queue import Queue
 import os.path
 import subprocess
 from cachetools import TTLCache, cached
+import asyncache
 from pathlib import Path
 import unicodedata
 import options
@@ -46,15 +47,11 @@ def get_backend_for(convid):
 
 def put(convid, text):
   backend = get_backend_for(convid)
-  backend.run_from_thread(backend.put, str(convid), text)
+  return backend.put(str(convid), text)
 
-async def get_cb_as(backend, callback, convid, bad_words):
-  text = await backend.get(str(convid), bad_words)
-  await asyncio.get_event_loop().run_in_executor(None, callback, text)
-
-def get_cb(callback, convid, bad_words):
+def get(convid, bad_words):
   backend = get_backend_for(convid)
-  backend.run_from_thread(get_cb_as, backend, callback, convid, bad_words)
+  return backend.get(str(convid), bad_words)
 
 def user_name(user):
   if user.username:
@@ -101,32 +98,31 @@ def ireplace(old, new, text):
 def get_cache_key(bot, ci):
   return ci
 
-@cached(TTLCache(1024, 120), key = get_cache_key)
-def can_send_message(bot, ci):
-  self_member = bot.get_chat_member(ci, bot.id)
+@asyncache.cached(TTLCache(1024, 120), key = get_cache_key)
+async def can_send_message(bot, ci):
+  self_member = await bot.get_chat_member(ci, bot.id)
   if self_member.status == 'restricted' and not self_member.can_send_messages:
     return False
   return True
 
-@cached(TTLCache(1024, 600), key = get_cache_key)
-def can_send_sticker(bot, ci):
-  self_member = bot.get_chat_member(ci, bot.id)
+@asyncache.cached(TTLCache(1024, 600), key = get_cache_key)
+async def can_send_sticker(bot, ci):
+  self_member = await bot.get_chat_member(ci, bot.id)
   if self_member.status == 'restricted' and not self_member.can_send_other_messages:
     return False
   return True
 
-@inqueue(miscqueue)
-def send_typing_notification(bot, convid):
+async def send_typing_notification(bot, convid):
   try:
-    bot.sendChatAction(chat_id=convid, action=telegram.constants.ChatAction.TYPING)
+    await bot.sendChatAction(chat_id=convid, action=T.constants.ChatAction.TYPING)
   except Exception:
     logger.exception("Can't send typing action")
 
-def try_reply(repfun, *args, **kwargs):
+async def try_reply(repfun, *args, **kwargs):
   while True:
     try:
-      repfun(*args, **kwargs)
-      return
+      m = await repfun(*args, **kwargs)
+      return m
     except Exception as e:
       if (isinstance(e, T.error.BadRequest) and 
           'reply_to_message_id' in kwargs and 
@@ -140,47 +136,40 @@ def try_reply(repfun, *args, **kwargs):
       logger.exception('I got this error')
       return None
 
-def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
+async def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
   backend = get_backend_for(ci)
-  if asyncio.run_coroutine_threadsafe(backend.queued_for_key(str(ci)), backend.loop).result() > 16:
+  if await backend.queued_for_key(str(ci)) > 16:
     logger.warning('Warning: reply queue full, dropping reply')
     return
-  send_typing_notification(bot, ci)
+  await send_typing_notification(bot, ci)
   badwords = get_badwords(ci) + get_badwords(0) + tgdatabase.get_filtered_usernames()
   gbwcount = options.get_option(ci, 'default_badwords')
   if gbwcount >= 3:
     badwords += tgdatabase.get_default_badwords(gbwcount)
-  badwords.sort(key=len, reverse=True)
-  def rf(txt):
-    omsg = msg = txt
-    for bw in badwords:
-      msg = ireplace(bw, '*' * len(bw), msg)
-    logger.info(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
-    if omsg != msg:
-      logger.info(' (original)=> %s' % (omsg,))
-    sp = options.get_option(ci, 'sticker_prob')
-    orpl = options.get_option(ci, 'send_as_reply')
-    if (not replyto) and replyto_cond and orpl > 0 and (replyto_cond != last_msg_id[ci] or orpl > 1):
-      reply_to = replyto_cond
-    else:
-      reply_to = replyto
-    last_msg_id[ci] = -1
-    if uniform(0, 1) < sp and can_send_sticker(bot, ci):
-      rs = rand_sticker(msg)
-      if rs:
-        logger.info('sending as sticker %s/%s' % (rs[2], rs[0]))
-        dbid = []
-        log_sticker(1, msg, rs[0], None, rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-        m = try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
-        if m:
-          log_add_msg_id(dbid, m.message_id)
-        return
-    dbid = []
-    log(1, msg, original_message = omsg if omsg != msg else None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-    m = try_reply(bot.sendMessage, chat_id=ci, text=msg, reply_to_message_id=reply_to)
-    if m:
-      log_add_msg_id(dbid, m.message_id)
-  get_cb(rf, ci, badwords)
+  msg = await get(ci, badwords)
+  logger.info(' => %s/%s/%d: %s' % (fron, fro, ci, msg))
+  sp = options.get_option(ci, 'sticker_prob')
+  orpl = options.get_option(ci, 'send_as_reply')
+  if (not replyto) and replyto_cond and orpl > 0 and (replyto_cond != last_msg_id[ci] or orpl > 1):
+    reply_to = replyto_cond
+  else:
+    reply_to = replyto
+  last_msg_id[ci] = -1
+  if uniform(0, 1) < sp and await can_send_sticker(bot, ci):
+    rs = rand_sticker(msg)
+    if rs:
+      logger.info('sending as sticker %s/%s' % (rs[2], rs[0]))
+      dbid = []
+      log_sticker(1, msg, rs[0], None, rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+      m = await try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
+      if m:
+        log_add_msg_id(dbid, m.message_id)
+      return
+  dbid = []
+  log(1, msg, original_message = None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
+  m = await try_reply(bot.sendMessage, chat_id=ci, text=msg, reply_to_message_id=reply_to)
+  if m:
+    log_add_msg_id(dbid, m.message_id)
 
 def fix_name(value):
   value = re.sub('[/<>:"\\\\|?*]', '_', value)
@@ -213,9 +202,9 @@ def download_file(bot, fid, filename, convid, on_finish=None):
   downloadqueue.put(df, True, 30)
   downloaded_files.add(fid)
 
-def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
+async def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   logger.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
-  put(ci, txt)
+  await put(ci, txt)
 
   reply_to_id = message.reply_to_message.message_id if message.reply_to_message else None
   conversation = message.chat
@@ -232,15 +221,15 @@ def cifrofron(update):
   froi = update.message.from_user.id
   return ci, fro, fron, froi
 
-def should_reply(bot, msg, ci, txt = None):
+async def should_reply(bot, msg, ci, txt = None):
   if msg and msg.reply_to_message and msg.reply_to_message.from_user.id == bot.id:
-    return True and can_send_message(bot, ci)
+    return True and await can_send_message(bot, ci)
   if not txt:
     txt = msg.text
   if txt and (Config.get('Chat', 'Keyword') in txt.lower()):
-    return True and can_send_message(bot, ci)
+    return True and await can_send_message(bot, ci)
   rp = options.get_option(ci, 'reply_prob')
-  return (uniform(0, 1) < rp) and can_send_message(bot, ci)
+  return (uniform(0, 1) < rp) and await can_send_message(bot, ci)
 
 class BlacklistingLogger():
   def __init__(self):
@@ -255,6 +244,7 @@ class BlacklistingLogger():
 
 blkLog = BlacklistingLogger()
 
+# TODO test/fix for blacklisted chats
 def update_wrap(f):
   def wrapped(update: Update, context: CallbackContext):
     if not update.message:
@@ -268,16 +258,16 @@ def update_wrap(f):
   return wrapped
 
 @update_wrap
-def msg(update: Update, context: CallbackContext):
+async def msg(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
   if options.get_option(ci, 'ignore_commands') > 0 and is_nonstandard_command(txt):
     return
   last_msg_id[ci] = update.message.message_id
-  getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-  if should_reply(context.bot, update.message, ci):
-    sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+  if await should_reply(context.bot, update.message, ci):
+    await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 @update_wrap
 def me(update: Update, context: CallbackContext):
@@ -311,6 +301,7 @@ def sticker(update: Update, context: CallbackContext):
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user,
     learn_sticker = can_learn)
+  #await this
   if should_reply(context.bot, update.message, ci):
     sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
@@ -385,6 +376,7 @@ def photo(update: Update, context: CallbackContext):
   if txt:
     attr += '; caption=' + txt
     getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+    # await this
     if should_reply(context.bot, update.message, ci, txt):
       sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
@@ -732,9 +724,10 @@ threads.start_thread(target=thr_console, args=())
 
 
 nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
-nn.run_thread()
-nnexec = ThreadPoolExecutor(max_workers=4)
-nn.loop.set_default_executor(nnexec)
+nn.initialize2()
+#nn.run_thread()
+#nnexec = ThreadPoolExecutor(max_workers=4)
+#nn.loop.set_default_executor(nnexec)
 backends = {}
 backends[0] = nn
 for section in (x for x in Config.sections() if x.startswith('Backend:')):
@@ -742,8 +735,8 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   annid = int(section.split(':')[1])
   annurl = Config.get(section, 'Url')
   ann = HTTPNN(annurl, Config.get('Backend', 'Keyprefix'))
-  ann.run_thread()
-  ann.loop.set_default_executor(nnexec)
+  #ann.run_thread()
+  #ann.loop.set_default_executor(nnexec)
   backends[annid] = ann
 
 app = ApplicationBuilder().token(Config.get('Telegram','Token')).build()
@@ -753,13 +746,13 @@ app.add_handler(MessageHandler(filters.COMMAND, logcmd), 0)
 
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), msg), 1)
 
-app.add_handler(MessageHandler(filters.Sticker(), sticker), 2)
+app.add_handler(MessageHandler(filters.Sticker.ALL, sticker), 2)
 app.add_handler(MessageHandler(filters.VIDEO, video), 2)
-app.add_handler(MessageHandler(filters.Document(), document), 2)
+app.add_handler(MessageHandler(filters.Document.ALL, document), 2)
 app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
 app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
 app.add_handler(MessageHandler(filters.VOICE, voice), 2)
-app.add_handler(MessageHandler(filters.StatusUpdate(), status), 2)
+app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
 
 app.add_handler(CommandHandler('start', start), 3)
 app.add_handler(CommandHandler('givesticker', givesticker), 3)
@@ -775,3 +768,5 @@ app.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters
 app.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 
 app.run_polling()
+
+#TODO check sending responses as reply
