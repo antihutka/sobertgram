@@ -109,7 +109,7 @@ def check_file_text(cur):
 
 @with_cursor
 def check_chat_files(cur):
-  cur.execute("SELECT id FROM chat_files LEFT JOIN options2 USING (convid) WHERE TIMESTAMPDIFF(DAY, date, CURRENT_TIMESTAMP) > 90 AND is_bad > 0 AND type IN ('document') LIMIT 200000")
+  cur.execute("SELECT id FROM chat_files LEFT JOIN options2 USING (convid) WHERE TIMESTAMPDIFF(DAY, date, CURRENT_TIMESTAMP) > 90 AND is_bad > 0 AND type IN ('document', 'video', 'audio', 'voice', 'photo') LIMIT 250000")
   res = cur.fetchall()
   print("Deleting %d chat_files rows" % len(res))
   for r in res:
