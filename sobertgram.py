@@ -739,7 +739,7 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   #ann.loop.set_default_executor(nnexec)
   backends[annid] = ann
 
-app = ApplicationBuilder().token(Config.get('Telegram','Token')).build()
+app = ApplicationBuilder().token(Config.get('Telegram','Token')).concurrent_updates(True).build()
 
 app.add_handler(CommandHandler('me', me), 0)
 app.add_handler(MessageHandler(filters.COMMAND, logcmd), 0)
@@ -768,5 +768,3 @@ app.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters
 app.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 
 app.run_polling()
-
-#TODO check sending responses as reply
