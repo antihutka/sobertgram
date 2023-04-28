@@ -270,13 +270,13 @@ async def msg(update: Update, context: CallbackContext):
     await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 @update_wrap
-def me(update: Update, context: CallbackContext):
+async def me(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-  sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+  await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 def emojiname(emoji):
   try:
