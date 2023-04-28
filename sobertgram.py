@@ -549,7 +549,7 @@ def cmd_option_list(update: Update, context: CallbackContext):
   cmdreply(context.bot, update.message.chat_id, repl)
 
 @update_wrap
-def logcmd(update: Update, context: CallbackContext):
+async def logcmd(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   txt = update.message.text
   logger.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
@@ -743,6 +743,8 @@ app = ApplicationBuilder().token(Config.get('Telegram','Token')).concurrent_upda
 
 app.add_handler(CommandHandler('me', me), 0)
 app.add_handler(MessageHandler(filters.COMMAND, logcmd), 0)
+
+# things above updated for async
 
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), msg), 1)
 
