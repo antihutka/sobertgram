@@ -31,7 +31,6 @@ if len(sys.argv) != 2:
 Config.read(sys.argv[1])
 
 downloaded_files = set()
-downloadqueue = Queue()
 cmdqueue = Queue()
 miscqueue = Queue()
 pqed_messages = set()
@@ -175,31 +174,20 @@ def fix_name(value):
   value = re.sub('[/<>:"\\\\|?*]', '_', value)
   return value
 
-downloads_per_chat = KeyCounters()
-
-def download_file(bot, fid, filename, convid, on_finish=None):
-  def df():
-    downloads_per_chat.dec(convid)
-    Path(filename).parent.mkdir(parents=True, exist_ok=True)
-    f = bot.getFile(file_id=fid)
-    existingpath = is_file_downloaded(f.file_unique_id)
-    if existingpath:
-      logger.info('file %s already downloaded as %s', filename, existingpath)
-      if on_finish:
-        on_finish(existingpath)
-      return
-    logger.info('downloading file %s from %s, %d/%d pending' % (filename, f.file_path, downloads_per_chat[convid], downloadqueue.qsize()))
-    f.download(custom_path=filename, timeout=120)
-    log_file_download(f.file_unique_id, filename, f.file_size)
+async def download_file(bot, fid, filename, convid, on_finish=None):
+  Path(filename).parent.mkdir(parents=True, exist_ok=True)
+  f = await bot.getFile(file_id=fid)
+  existingpath = is_file_downloaded(f.file_unique_id)
+  if existingpath:
+    logger.info('file %s already downloaded as %s', filename, existingpath)
     if on_finish:
-      on_finish(filename)
-    sleep(1)
-  pending_chat = downloads_per_chat[convid]
-  if pending_chat > 20:
-    logger.warning("Skipping download - %d downloads pending for chat, %d downloads pending total" % (pending_chat, downloadqueue.qsize()))
+      on_finish(existingpath)
     return
-  downloads_per_chat.inc(convid)
-  downloadqueue.put(df, True, 30)
+  logger.info('downloading file %s from %s' % (filename, f.file_path))
+  await f.download_to_drive(custom_path=filename)
+  log_file_download(f.file_unique_id, filename, f.file_size)
+  if on_finish:
+    await on_finish(filename)
   downloaded_files.add(fid)
 
 async def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
@@ -285,7 +273,7 @@ def emojiname(emoji):
     return 'unknown'
 
 @update_wrap
-def sticker(update: Update, context: CallbackContext):
+async def sticker(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
@@ -293,7 +281,7 @@ def sticker(update: Update, context: CallbackContext):
   set = '(unnamed)' if st.set_name is None else st.set_name
   emo = st.emoji or ''
   logger.info('%s/%s/%d: [sticker <%s> <%s> < %s >]' % (fron, fro, ci, st.file_id, set, emo))
-  put(ci, emo)
+  await put(ci, emo)
   reluniq = tgdatabase.get_rel_uniq(ci)
   can_learn = (options.get_option(ci, 'is_bad') < 1) and (reluniq is not None) and (reluniq > 0.5)
   logger.info("uniq/canlearn %s %s", reluniq, can_learn)
@@ -301,10 +289,9 @@ def sticker(update: Update, context: CallbackContext):
     fwduser = message.forward_from, fwdchat = message.forward_from_chat,
     conversation=update.message.chat, user=update.message.from_user,
     learn_sticker = can_learn)
-  #await this
-  if should_reply(context.bot, update.message, ci):
-    sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-  download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
+  if await should_reply(context.bot, update.message, ci):
+    await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  await download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
 
 @update_wrap
 def video(update: Update, context: CallbackContext):
@@ -716,7 +703,6 @@ def thr_console():
 
 loadstickers()
 
-threads.start_thread(args=(downloadqueue, 'download'))
 threads.start_thread(args=(logqueue, 'dblogger'))
 threads.start_thread(args=(cmdqueue, 'commands'))
 threads.start_thread(args=(miscqueue, 'misc'))
@@ -744,11 +730,11 @@ app = ApplicationBuilder().token(Config.get('Telegram','Token')).concurrent_upda
 app.add_handler(CommandHandler('me', me), 0)
 app.add_handler(MessageHandler(filters.COMMAND, logcmd), 0)
 
-# things above updated for async
-
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), msg), 1)
 
+
 app.add_handler(MessageHandler(filters.Sticker.ALL, sticker), 2)
+# things above updated for async
 app.add_handler(MessageHandler(filters.VIDEO, video), 2)
 app.add_handler(MessageHandler(filters.Document.ALL, document), 2)
 app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
