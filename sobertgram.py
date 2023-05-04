@@ -294,7 +294,7 @@ async def sticker(update: Update, context: CallbackContext):
   await download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
 
 @update_wrap
-def video(update: Update, context: CallbackContext):
+async def video(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   vid = update.message.video
   fid = vid.file_id
@@ -305,11 +305,11 @@ def video(update: Update, context: CallbackContext):
   if options.get_option(ci, 'ignore_files') > 0:
     return
   if (Config.getboolean('Download', 'Video', fallback=True)):
-    download_file(context.bot, fid, 'video/' + fix_name(uid) + '.mp4', convid=ci)
+    await download_file(context.bot, fid, 'video/' + fix_name(uid) + '.mp4', convid=ci)
   log_file('video', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
-def document(update: Update, context: CallbackContext):
+async def document(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   doc = update.message.document
   fid = doc.file_id
@@ -323,11 +323,11 @@ def document(update: Update, context: CallbackContext):
   if options.get_option(ci, 'ignore_files') > 0:
     return
   if (Config.getboolean('Download', 'Document', fallback=True)):
-    download_file(context.bot, fid, 'document/' + fix_name(uid) + ' ' + fix_name(name), convid=ci)
+    await download_file(context.bot, fid, 'document/' + fix_name(uid) + ' ' + fix_name(name), convid=ci)
   log_file('document', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
-def audio(update: Update, context: CallbackContext):
+async def audio(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   aud = update.message.audio
   fid = aud.file_id
@@ -341,7 +341,7 @@ def audio(update: Update, context: CallbackContext):
   if options.get_option(ci, 'ignore_files') > 0:
     return
   if (Config.getboolean('Download', 'Audio', fallback=True)):
-    download_file(context.bot, fid, 'audio/' + '%s %s - %s%s' % (fix_name(uid), fix_name(aud.performer), fix_name(aud.title), fix_name(ext)), convid=ci)
+    await download_file(context.bot, fid, 'audio/' + '%s %s - %s%s' % (fix_name(uid), fix_name(aud.performer), fix_name(aud.title), fix_name(ext)), convid=ci)
   log_file('audio', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
@@ -734,10 +734,10 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), msg), 1)
 
 
 app.add_handler(MessageHandler(filters.Sticker.ALL, sticker), 2)
-# things above updated for async
 app.add_handler(MessageHandler(filters.VIDEO, video), 2)
 app.add_handler(MessageHandler(filters.Document.ALL, document), 2)
 app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
+# things above updated for async
 app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
 app.add_handler(MessageHandler(filters.VOICE, voice), 2)
 app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
