@@ -181,7 +181,7 @@ async def download_file(bot, fid, filename, convid, on_finish=None):
   if existingpath:
     logger.info('file %s already downloaded as %s', filename, existingpath)
     if on_finish:
-      on_finish(existingpath)
+      await on_finish(existingpath)
     return
   logger.info('downloading file %s from %s' % (filename, f.file_path))
   await f.download_to_drive(custom_path=filename)
@@ -345,7 +345,7 @@ async def audio(update: Update, context: CallbackContext):
   log_file('audio', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
-def photo(update: Update, context: CallbackContext):
+async def photo(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
@@ -362,12 +362,11 @@ def photo(update: Update, context: CallbackContext):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-    # await this
+    await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
     if should_reply(context.bot, update.message, ci, txt):
-      sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+      await sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
-  def process_photo(f):
+  async def process_photo(f):
     logger.info('OCR running on %s' % f)
     ocrtext = subprocess.check_output(['tesseract', f, 'stdout']).decode('utf8', errors='ignore')
     ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
@@ -377,16 +376,14 @@ def photo(update: Update, context: CallbackContext):
     log_file_text(fid, 'ocr', ocrtext)
     if options.get_option(ci, 'is_bad') > 0:
       ocrtext = ocrtext[-100:]
-    def process_photo_reply(_context):
-      put(ci, ocrtext)
-      if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
-        logger.info('sending reply')
-        sendreply(_context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
-    updater.job_queue.run_once(process_photo_reply, 0)
+    await put(ci, ocrtext)
+    if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
+      logger.info('sending reply')
+      await sendreply(context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   if options.get_option(ci, 'ignore_files') > 0:
     return
-  download_file(context.bot, fid, 'photo/' + fix_name(uid) + '.jpg', on_finish=process_photo, convid=ci)
   log_file('photo', maxsize, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
+  await download_file(context.bot, fid, 'photo/' + fix_name(uid) + '.jpg', on_finish=process_photo, convid=ci)
 
 @update_wrap
 def cmd_download_photo(update: Update, context: CallbackContext):
@@ -737,8 +734,8 @@ app.add_handler(MessageHandler(filters.Sticker.ALL, sticker), 2)
 app.add_handler(MessageHandler(filters.VIDEO, video), 2)
 app.add_handler(MessageHandler(filters.Document.ALL, document), 2)
 app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
-# things above updated for async
 app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
+# things above updated for async
 app.add_handler(MessageHandler(filters.VOICE, voice), 2)
 app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
 
