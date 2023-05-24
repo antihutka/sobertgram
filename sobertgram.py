@@ -394,7 +394,7 @@ def cmd_download_photo(update: Update, context: CallbackContext):
     logger.warning('Photo not in DB')
 
 @update_wrap
-def voice(update: Update, context: CallbackContext):
+async def voice(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   voi = update.message.voice
   fid = voi.file_id
@@ -404,11 +404,11 @@ def voice(update: Update, context: CallbackContext):
   logger.info('%s/%s: voice, %d, %s, %s' % (fron, fro, size, fid, attr))
   if options.get_option(ci, 'ignore_files') > 0:
     return
-  download_file(context.bot, fid, 'voice/' + fix_name(uid) + '.opus', convid=ci)
+  await download_file(context.bot, fid, 'voice/' + fix_name(uid) + '.opus', convid=ci)
   log_file('voice', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
 @update_wrap
-def status(update: Update, context: CallbackContext):
+async def status(update: Update, context: CallbackContext):
   msg = update.message
   ci, fro, fron, froi = cifrofron(update)
   upd = []
@@ -735,10 +735,10 @@ app.add_handler(MessageHandler(filters.VIDEO, video), 2)
 app.add_handler(MessageHandler(filters.Document.ALL, document), 2)
 app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
 app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
-# things above updated for async
 app.add_handler(MessageHandler(filters.VOICE, voice), 2)
 app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
 
+# things above updated for async
 app.add_handler(CommandHandler('start', start), 3)
 app.add_handler(CommandHandler('givesticker', givesticker), 3)
 app.add_handler(CommandHandler('option_set', cmd_option_set), 3)
