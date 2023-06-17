@@ -125,8 +125,7 @@ def send_typing_notification(bot, convid):
 def try_reply(repfun, *args, **kwargs):
   while True:
     try:
-      repfun(*args, **kwargs)
-      return
+      return repfun(*args, **kwargs)
     except Exception as e:
       if (isinstance(e, T.error.BadRequest) and 
           'reply_to_message_id' in kwargs and 
