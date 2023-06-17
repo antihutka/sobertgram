@@ -140,16 +140,21 @@ def try_reply(repfun, *args, **kwargs):
       logger.exception('I got this error')
       return None
 
+def get_default_badwords_for(ci):
+  gbwcount = options.get_option(ci, 'default_badwords')
+  if gbwcount <= 0:
+    return []
+  if gbwcount < 3:
+    gbwcount = 3
+  return tgdatabase.get_default_badwords(gbwcount)
+
 def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
   backend = get_backend_for(ci)
   if asyncio.run_coroutine_threadsafe(backend.queued_for_key(str(ci)), backend.loop).result() > 16:
     logger.warning('Warning: reply queue full, dropping reply')
     return
   send_typing_notification(bot, ci)
-  badwords = get_badwords(ci) + get_badwords(0) + tgdatabase.get_filtered_usernames()
-  gbwcount = options.get_option(ci, 'default_badwords')
-  if gbwcount >= 3:
-    badwords += tgdatabase.get_default_badwords(gbwcount)
+  badwords = get_badwords(ci) + get_badwords(0) + tgdatabase.get_filtered_usernames() + get_default_badwords_for(ci)
   badwords.sort(key=len, reverse=True)
   def rf(txt):
     omsg = msg = txt
@@ -639,9 +644,8 @@ def cmd_badword(update: Update, context: CallbackContext):
   bw = get_badwords(ci)
   if len(msg_split) == 1:
     repl = 'Current bad words: %s (%d)' % (', '.join((repr(w) for w in bw)), len(bw))
-    gbw = options.get_option(ci, 'default_badwords')
-    if gbw >= 3:
-      gbws = tgdatabase.get_default_badwords(gbw)
+    gbws = get_default_badwords_for(ci)
+    if gbws:
       repl += "\nDefault bad words: %s (%d)" % (', '.join(repr(w) for w in gbws), len(gbws))
     cmdreply(context.bot, ci, repl)
   else:
