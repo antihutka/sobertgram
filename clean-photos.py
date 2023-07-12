@@ -115,8 +115,17 @@ def check_chat_files(cur):
   for r in res:
     cur.execute("DELETE FROM chat_files WHERE id=%s", r)
 
+@with_cursor
+def check_file_ids(cur):
+  cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE chat_files.id IS NULL AND chat_sticker.id IS NULL LIMIT 19000")
+  res = cur.fetchall()
+  print("Deleting %d file_ids" % len(res))
+  for r in res:
+    cur.execute("DELETE FROM file_ids WHERE id=%s", r)
+
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
 
 check_file_text()
 check_chat_files()
+check_file_ids()
