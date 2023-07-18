@@ -93,7 +93,7 @@ def check_files(cursor, directory, extension):
     proccnt += 1
     delsize += filesize
     print("[T: %6d U: %6d N: %6d G: %6d P:%6d %.2f MB] File %s %.1f kB %.2f/%.2f days old good %d bad %d" % (totalcnt, uniqidcnt, newcnt, goodcnt, proccnt, delsize / 1024 / 1024, fileid, filesize / 1024, fileage, lastage, good, bad))
-    print("Deleting %s" % fullname)
+    #print("Deleting %s" % fullname)
     if isuniq:
       delete_dbentry(fileid)
     os.remove(fullname)
@@ -117,9 +117,11 @@ def check_chat_files(cur):
 
 @with_cursor
 def check_file_ids(cur):
-  cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE chat_files.id IS NULL AND chat_sticker.id IS NULL LIMIT 19000")
+  cur.execute("SELECT COUNT(*) FROM file_ids")
+  cnt = cur.fetchone()[0]
+  cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE chat_files.id IS NULL AND chat_sticker.id IS NULL LIMIT 26000")
   res = cur.fetchall()
-  print("Deleting %d file_ids" % len(res))
+  print("Deleting %d/%d file_ids" % (len(res), cnt))
   for r in res:
     cur.execute("DELETE FROM file_ids WHERE id=%s", r)
 
