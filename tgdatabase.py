@@ -245,7 +245,7 @@ def log_pq(cur, convid, userid, txt):
 def pq_limit_check(cur, userid):
   cur.execute("SELECT COUNT(*) FROM pq_bad WHERE userid=%s", (userid,))
   flagged = cur.fetchone()[0]
-  timepenalty = (flagged**2)//4
+  timepenalty = (flagged**3)//16
   logger.info('penalty %d' % timepenalty)
   cur.execute("SELECT COUNT(*) FROM pq WHERE userid=%s AND date > DATE_SUB(NOW(), INTERVAL %s MINUTE)", (userid, 60+timepenalty))
   res = cur.fetchone()[0]

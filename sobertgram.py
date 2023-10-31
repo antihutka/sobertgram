@@ -44,7 +44,10 @@ def get_backend_for(convid):
     bid = 0
   return backends[bid]
 
+
+ptr = re.compile("nigg(er)?", re.IGNORECASE)
 def put(convid, text):
+  text = ptr.sub(" ♫ Never gonna give you up! ♫ ", text)
   backend = get_backend_for(convid)
   backend.run_from_thread(backend.put, str(convid), text)
 

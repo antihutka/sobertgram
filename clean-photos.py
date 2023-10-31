@@ -119,7 +119,7 @@ def check_chat_files(cur):
 def check_file_ids(cur):
   cur.execute("SELECT COUNT(*) FROM file_ids")
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE chat_files.id IS NULL AND chat_sticker.id IS NULL LIMIT 26000")
+  cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE chat_files.id IS NULL AND chat_sticker.id IS NULL LIMIT 95000")
   res = cur.fetchall()
   print("Deleting %d/%d file_ids" % (len(res), cnt))
   for r in res:
