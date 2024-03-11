@@ -552,9 +552,9 @@ Commands:
 """
 
 @update_wrap
-@cmd_ratelimit
-def cmd_help(update: Update, context: CallbackContext):
-  cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
+#@cmd_ratelimit
+async def cmd_help(update: Update, context: CallbackContext):
+  await cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
 
 @update_wrap
 # @cmd_ratelimit #TODO untested
@@ -590,11 +590,10 @@ async def cmd_pq(update: Update, context: CallbackContext):
   log_pq(ci, froi, repl.text)
 
 @update_wrap
-@inqueue(cmdqueue)
-@cmd_ratelimit
-def cmd_stats(update: Update, context: CallbackContext):
+#@cmd_ratelimit
+async def cmd_stats(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
-  s = db_stats(ci)
+  s = await asyncio.get_running_loop().run_in_executor(None, db_stats, ci)
   quality_s = ("%.0f%%" % (s['quality']*100)) if s['quality'] else "Unknown"
   lin = []
   lin.append('Chat stats for %s:' % fron)
@@ -606,7 +605,7 @@ def cmd_stats(update: Update, context: CallbackContext):
   if s['badness'] is not None:
     lin.append('Chat badness: %.1f%%' % (s['badness'] * 100))
   lin.append('Users/groups active in the last 48 hours: %d/%d' % (s['actusr'], s['actgrp']))
-  cmdreply(context.bot, ci, '\n'.join(lin))
+  await cmdreply(context.bot, ci, '\n'.join(lin))
 
 @update_wrap
 @cmd_ratelimit
@@ -739,6 +738,9 @@ app.add_handler(MessageHandler(filters.AUDIO, audio), 2)
 app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
 app.add_handler(MessageHandler(filters.VOICE, voice), 2)
 app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
+app.add_handler(CommandHandler('help', cmd_help), 3)
+app.add_handler(CommandHandler('pq', cmd_pq), 3)
+app.add_handler(CommandHandler('stats', cmd_stats), 3)
 
 # things above updated for async
 app.add_handler(CommandHandler('start', start), 3)
@@ -746,9 +748,6 @@ app.add_handler(CommandHandler('givesticker', givesticker), 3)
 app.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 app.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 app.add_handler(CommandHandler('option_list', cmd_option_list), 3)
-app.add_handler(CommandHandler('help', cmd_help), 3)
-app.add_handler(CommandHandler('pq', cmd_pq), 3)
-app.add_handler(CommandHandler('stats', cmd_stats), 3)
 app.add_handler(CommandHandler('badword', cmd_badword), 3)
 app.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
 app.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
