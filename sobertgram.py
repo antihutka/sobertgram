@@ -442,21 +442,24 @@ async def cmdreply(bot, ci, text):
   msg = await bot.sendMessage(chat_id=ci, text=text)
   command_replies.add((ci, msg.message_id))
 
+async def riwt(*args):
+  return await asyncio.get_running_loop().run_in_executor(None, *args)
+
 @update_wrap
-def givesticker(update: Update, context: CallbackContext):
+async def cmd_givesticker(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   foremo = None
   cmd = update.message.text
   m = re.match('^/[^ ]+ (.+)', cmd)
   if m:
     foremo = m.group(1).strip()
-  rs = rand_sticker(foremo)
+  rs = await riwt(rand_sticker, foremo)
   if not rs:
-    cmdreply(context.bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis_g()))))
+    await cmdreply(context.bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis_g()))))
   else:
     fid, emo, set = rs
     logger.info('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
-    context.bot.sendSticker(chat_id=ci, sticker=fid)
+    await context.bot.sendSticker(chat_id=ci, sticker=fid)
 
 def cmd_ratelimit(inf):
   def outf(update: Update, context: CallbackContext):
@@ -467,14 +470,14 @@ def cmd_ratelimit(inf):
   return outf
 
 @update_wrap
-@cmd_ratelimit
-def start(update: Update, context: CallbackContext):
+#@cmd_ratelimit
+async def cmd_start(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   if options.get_option(ci, 'silent_commands') > 0:
     logger.info('ignoring /start')
     return
   logger.info('%s/%d /start' % (fro, ci))
-  sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
+  await sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
 def user_is_admin(bot, convid, userid, owner_only):
   if convid > 0:
@@ -490,35 +493,33 @@ def admin_check(bot, convid, userid, option_name='admin_only'):
   return user_is_admin(bot, convid, userid, options.get_option(convid, option_name) >= 2)
 
 @update_wrap
-@inqueue(cmdqueue)
-@cmd_ratelimit
-def cmd_option_set(update: Update, context: CallbackContext):
+#@cmd_ratelimit
+async def cmd_option_set(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   txt = update.message.text.split()
   if (len(txt) != 3):
-    cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.')
+    await cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.')
     return
   if not admin_check(context.bot, ci, update.message.from_user.id):
-     cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+     await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
      return
   opt = txt[1]
   val = txt[2]
   try:
-    options.set_option(ci, opt, val)
-    cmdreply(context.bot, ci, '<option %s set to %s>' % (opt, val))
+    await riwt(options.set_option, ci, opt, val)
+    await cmdreply(context.bot, ci, '<option %s set to %s>' % (opt, val))
   except options.OptionError as oe:
-    cmdreply(context.bot, ci, '<%s>' % (str(oe),))
+    await cmdreply(context.bot, ci, '<%s>' % (str(oe),))
 
 @update_wrap
-def cmd_option_flush(update: Update, context: CallbackContext):
+async def cmd_option_flush(update: Update, context: CallbackContext):
   options.optioncache.clear()
   badword_cache.clear()
-  cmdreply(context.bot, update.message.chat_id, '<done>')
+  await cmdreply(context.bot, update.message.chat_id, '<done>')
 
 @update_wrap
-@inqueue(cmdqueue)
-@cmd_ratelimit
-def cmd_option_list(update: Update, context: CallbackContext):
+#@cmd_ratelimit
+async def cmd_option_list(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   repl = 'Options, use /option_set <name> <value> to change:'
   for opt in options.options.values():
@@ -533,7 +534,7 @@ def cmd_option_list(update: Update, context: CallbackContext):
       repl += "\nDefault: users: %s, groups: %s" % (opt.default_user, opt.default_group)
     repl += "\nCurrent value: %s" % (options.get_option(ci, opt.name))
     repl += "\n%s" % (opt.description)
-  cmdreply(context.bot, update.message.chat_id, repl)
+  await cmdreply(context.bot, update.message.chat_id, repl)
 
 @update_wrap
 async def logcmd(update: Update, context: CallbackContext):
@@ -593,7 +594,7 @@ async def cmd_pq(update: Update, context: CallbackContext):
 #@cmd_ratelimit
 async def cmd_stats(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
-  s = await asyncio.get_running_loop().run_in_executor(None, db_stats, ci)
+  s = await riwt(db_stats, ci)
   quality_s = ("%.0f%%" % (s['quality']*100)) if s['quality'] else "Unknown"
   lin = []
   lin.append('Chat stats for %s:' % fron)
@@ -608,8 +609,8 @@ async def cmd_stats(update: Update, context: CallbackContext):
   await cmdreply(context.bot, ci, '\n'.join(lin))
 
 @update_wrap
-@cmd_ratelimit
-def cmd_badword(update: Update, context: CallbackContext):
+#@cmd_ratelimit
+async def cmd_badword(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
   msg = update.message.text
   msg_split = msg.split(' ', 1)
@@ -620,26 +621,26 @@ def cmd_badword(update: Update, context: CallbackContext):
     if gbw >= 3:
       gbws = tgdatabase.get_default_badwords(gbw)
       repl += "\nDefault bad words: %s (%d)" % (', '.join(repr(w) for w in gbws), len(gbws))
-    cmdreply(context.bot, ci, repl)
+    await cmdreply(context.bot, ci, repl)
   else:
     if not admin_check(context.bot, ci, froi):
-      cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+      await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
       return
     badword = msg_split[1].strip().lower()
     if '\n' in badword:
-      cmdreply(context.bot, ci, '< Bad word contains newline >')
+      await cmdreply(context.bot, ci, '< Bad word contains newline >')
       return
     if badword in bw:
-      delete_badword(ci, badword)
-      cmdreply(context.bot, ci, '< Bad word %s removed >' % (repr(badword)))
+      await riwt(delete_badword, ci, badword)
+      await cmdreply(context.bot, ci, '< Bad word %s removed >' % (repr(badword)))
     elif any((existing in badword) for existing in bw):
       ebws = list(filter(lambda e: e in badword, bw))
-      cmdreply(context.bot, ci, '< Bad word %s already matched by %s >' % (repr(badword), repr(ebws)))
+      await cmdreply(context.bot, ci, '< Bad word %s already matched by %s >' % (repr(badword), repr(ebws)))
     else:
       redundant = list(filter(lambda e: badword in e, bw))
-      add_badword(ci, badword, froi, remove = redundant)
+      await riwt(add_badword, ci, badword, froi, redundant)
       rmsg = ("\n< Redundant badwords %s removed >" % repr(redundant)) if redundant else ""
-      cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg))
+      await cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg))
 
 import magic
 
@@ -741,14 +742,14 @@ app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
 app.add_handler(CommandHandler('help', cmd_help), 3)
 app.add_handler(CommandHandler('pq', cmd_pq), 3)
 app.add_handler(CommandHandler('stats', cmd_stats), 3)
-
-# things above updated for async
-app.add_handler(CommandHandler('start', start), 3)
-app.add_handler(CommandHandler('givesticker', givesticker), 3)
+app.add_handler(CommandHandler('start', cmd_start), 3)
+app.add_handler(CommandHandler('givesticker', cmd_givesticker), 3)
 app.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 app.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 app.add_handler(CommandHandler('option_list', cmd_option_list), 3)
 app.add_handler(CommandHandler('badword', cmd_badword), 3)
+
+# things above updated for async
 app.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
 app.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 app.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
