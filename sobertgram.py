@@ -431,12 +431,12 @@ async def status(update: Update, context: CallbackContext):
     logger.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
   log_status(upd, conversation=update.message.chat, user=update.message.from_user)
 
-def cmdreply(bot, ci, text):
+async def cmdreply(bot, ci, text):
   if options.get_option(ci, 'silent_commands') > 0:
     logger.info('=> [silent] %s', text)
     return
   logger.info('=> %s' % text)
-  msg = bot.sendMessage(chat_id=ci, text=text)
+  msg = await bot.sendMessage(chat_id=ci, text=text)
   command_replies.add((ci, msg.message_id))
 
 @update_wrap
@@ -554,36 +554,35 @@ def cmd_help(update: Update, context: CallbackContext):
   cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
 
 @update_wrap
-@inqueue(cmdqueue)
-@cmd_ratelimit
-def cmd_pq(update: Update, context: CallbackContext):
+# @cmd_ratelimit #TODO untested
+async def cmd_pq(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
 
   if not admin_check(context.bot, ci, update.message.from_user.id, option_name='admin_only_pq'):
-     cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+     await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
      return
 
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != context.bot.id):
-    cmdreply(context.bot, ci, '<send that as a reply to my message!>')
+    await cmdreply(context.bot, ci, '<send that as a reply to my message!>')
     return
 
   repl = msg.reply_to_message
   replid = repl.message_id
 
   if (repl.sticker or not repl.text):
-    cmdreply(context.bot, ci, '<only regular text messages are supported>')
+    await cmdreply(context.bot, ci, '<only regular text messages are supported>')
     return
   if (replid in pqed_messages) or (already_pqd(repl.text)):
-    cmdreply(context.bot, ci, '<message already forwarded>')
+    await cmdreply(context.bot, ci, '<message already forwarded>')
     return
   if (ci, replid) in command_replies:
-    cmdreply(context.bot, ci, '<that is a silly thing to forward!>')
+    await cmdreply(context.bot, ci, '<that is a silly thing to forward!>')
     return
   if pq_limit_check(froi) >= 5:
-    cmdreply(context.bot, ci, '<slow down a little!>')
+    await cmdreply(context.bot, ci, '<slow down a little!>')
     return
-  context.bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
+  await context.bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
   pqed_messages.add(replid)
   log_pq(ci, froi, repl.text)
 
