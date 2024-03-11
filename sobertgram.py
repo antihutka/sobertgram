@@ -197,8 +197,8 @@ async def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   reply_to_id = message.reply_to_message.message_id if message.reply_to_message else None
   conversation = message.chat
   user = message.from_user
-  fwduser = message.forward_from
-  fwdchat = message.forward_from_chat
+  fwduser = message.forward_origin.sender_user if isinstance(message.forward_origin, T.MessageOriginUser) else None
+  fwdchat = message.forward_origin.sender_chat if isinstance(message.forward_origin, T.MessageOriginChat) else (message.forward_origin.chat if isinstance(message.forward_origin, T.MessageOriginChannel) else None)
 
   log(0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
 
@@ -285,9 +285,12 @@ async def sticker(update: Update, context: CallbackContext):
   reluniq = tgdatabase.get_rel_uniq(ci)
   can_learn = (options.get_option(ci, 'is_bad') < 1) and (reluniq is not None) and (reluniq > 0.5)
   logger.info("uniq/canlearn %s %s", reluniq, can_learn)
+
+  fwduser = message.forward_origin.sender_user if isinstance(message.forward_origin, T.MessageOriginUser) else None
+  fwdchat = message.forward_origin.sender_chat if isinstance(message.forward_origin, T.MessageOriginChat) else (message.forward_origin.chat if isinstance(message.forward_origin, T.MessageOriginChannel) else None)
+
   log_sticker(0, emo, st.file_id, st.file_unique_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
-    fwduser = message.forward_from, fwdchat = message.forward_from_chat,
-    conversation=update.message.chat, user=update.message.from_user,
+    fwduser = fwduser, fwdchat = fwdchat, conversation=update.message.chat, user=update.message.from_user,
     learn_sticker = can_learn)
   if await should_reply(context.bot, update.message, ci):
     await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
