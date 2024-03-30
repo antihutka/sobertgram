@@ -282,32 +282,6 @@ def delete_badword(cur, convid, badword):
   badword_cache[convid].remove(badword)
 
 @with_cursor
-def get_stickers_to_migrate(cur, cnt):
-  cur.execute("SELECT file_id, set_name, emoji FROM stickers WHERE length(file_id) > 22 LIMIT %s", (cnt,))
-  return cur.fetchall()
-
-@with_cursor
-def update_sticker_id(cur, fileid, uniqid):
-  cur.execute("SELECT COUNT(*) FROM file_ids WHERE file_id=%s", (fileid,))
-  if cur.fetchone()[0] > 0:
-    logger.info("File ID already logged, skipping")
-  else:
-    log_file_id(cur, fileid, uniqid)
-  cur.execute("SELECT freqmod FROM stickers WHERE file_id=%s", (uniqid,))
-  r = cur.fetchone()
-  if r:
-    cur.execute("SELECT freqmod FROM stickers WHERE file_id=%s", (fileid,))
-    newfreq = cur.fetchone()[0]
-    logger.info("Sticker already converted with freqmod=%d, new freqmod=%d", r[0], newfreq)
-    if r[0] == 1 and newfreq != r[0]:
-      logger.info("Changing freqmod")
-      cur.execute("UPDATE stickers SET freqmod=%s WHERE file_id=%s", (newfreq,uniqid))
-    cur.execute("DELETE FROM stickers WHERE file_id=%s", (fileid,))
-  else:
-    logger.info("Sticker not converted yet, changing id")
-    cur.execute("UPDATE stickers SET file_id=%s WHERE file_id=%s", (uniqid, fileid))
-
-@with_cursor
 def db_get_photo(cur, fid):
   cur.execute("SELECT COUNT(*) FROM chat_files WHERE type = 'photo' AND file_id = %s", (fid,))
   return cur.fetchone()[0]

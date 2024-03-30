@@ -642,52 +642,6 @@ async def cmd_badword(update: Update, context: CallbackContext):
       rmsg = ("\n< Redundant badwords %s removed >" % repr(redundant)) if redundant else ""
       await cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg))
 
-import magic
-
-@inqueue(miscqueue)
-@update_wrap
-def cmd_migrate_stickers(update: Update, context: CallbackContext):
-  msg_split = update.message.text.split(' ', 1)
-  cnt = int(msg_split[1]) if len(msg_split) > 1 else 1
-  logger.info('Migrating %d stickers' % cnt)
-  already_downloaded = 0
-  deleted = 0
-  moved = 0
-  missing = 0
-  for (fid, set, emoji) in get_stickers_to_migrate(cnt):
-    logger.info('Migrating %s' % fid)
-    try:
-      fil = context.bot.get_file(fid)
-    except:
-      logger.exception("Can't get file, skipping")
-      continue
-    logger.info('File info: %s' % repr(fil.__dict__))
-    origpath = 'stickers/' + fix_name(fid) + ' ' + fix_name(set) + '.webp'
-    if is_file_downloaded(fil.file_unique_id):
-      already_downloaded += 1
-      logger.info('File already downloaded')
-      if os.path.isfile(origpath):
-        logger.info('Original file exists')
-        os.remove(origpath)
-        deleted += 1
-      update_sticker_id(fid, fil.file_unique_id)
-    elif os.path.isfile(origpath):
-      logger.info('Original %s exists', origpath)
-      mimetype = magic.from_file(origpath, mime=True)
-      extension = 'tgs' if mimetype == 'application/gzip' else 'webp'
-      newpath = 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(fil.file_unique_id), fix_name(emojiname(emoji)), extension)
-      logger.info('Type %s, New path is %s', mimetype, newpath)
-      Path(newpath).parent.mkdir(parents=True, exist_ok=True)
-      os.rename(origpath, newpath)
-      log_file_download(fil.file_unique_id, newpath, fil.file_size)
-      update_sticker_id(fid, fil.file_unique_id)
-      moved += 1
-    else:
-      logger.info('Original %s missing, updating %s->%s', origpath, fid, fil.file_unique_id)
-      update_sticker_id(fid, fil.file_unique_id)
-      missing += 1
-  cmdreply(context.bot, update.message.chat_id, "Done [%d/%d/%d/%d]" % (already_downloaded, deleted, moved, missing))
-
 @inqueue(cmdqueue)
 @update_wrap
 def cmd_secret_for(update: Update, context: CallbackContext):
@@ -751,7 +705,6 @@ app.add_handler(CommandHandler('badword', cmd_badword), 3)
 
 # things above updated for async
 app.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
-app.add_handler(CommandHandler('migrate_stickers', cmd_migrate_stickers, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 app.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 
 app.run_polling()
