@@ -389,10 +389,10 @@ async def photo(update: Update, context: CallbackContext):
   await download_file(context.bot, fid, 'photo/' + fix_name(uid) + '.jpg', on_finish=process_photo, convid=ci)
 
 @update_wrap
-def cmd_download_photo(update: Update, context: CallbackContext):
+async def cmd_download_photo(update: Update, context: CallbackContext):
   fid = update.message.text.split(' ')[1]
   if db_get_photo(fid):
-    download_file(context.bot, fid, 'photo/' + fix_name(uid) + '.jpg', convid=0)
+    await download_file(context.bot, fid, 'photo/' + fix_name(uid) + '.jpg', convid=0)
   else:
     logger.warning('Photo not in DB')
 
@@ -642,13 +642,12 @@ async def cmd_badword(update: Update, context: CallbackContext):
       rmsg = ("\n< Redundant badwords %s removed >" % repr(redundant)) if redundant else ""
       await cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg))
 
-@inqueue(cmdqueue)
 @update_wrap
-def cmd_secret_for(update: Update, context: CallbackContext):
+async def cmd_secret_for(update: Update, context: CallbackContext):
   msg_split = update.message.text.split(' ', 1)
   userid = update.message.from_user.id if len(msg_split) < 2 else int(msg_split[1])
   stats = tgdatabase.userstats(userid)
-  cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats)
+  await cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats)
 
 def thr_console():
   for line in sys.stdin:
@@ -702,8 +701,6 @@ app.add_handler(CommandHandler('option_set', cmd_option_set), 3)
 app.add_handler(CommandHandler('option_flush', cmd_option_flush), 3)
 app.add_handler(CommandHandler('option_list', cmd_option_list), 3)
 app.add_handler(CommandHandler('badword', cmd_badword), 3)
-
-# things above updated for async
 app.add_handler(CommandHandler('download_photo', cmd_download_photo), 3)
 app.add_handler(CommandHandler('secret_for', cmd_secret_for, filters=filters.User(user_id=Config.getint('Admin', 'Admin'))), 3)
 
