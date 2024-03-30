@@ -243,7 +243,11 @@ def log_pq(cur, convid, userid, txt):
 @retry(5)
 @with_cursor
 def pq_limit_check(cur, userid):
-  cur.execute("SELECT COUNT(*) FROM pq WHERE userid=%s AND date > DATE_SUB(NOW(), INTERVAL 1 HOUR)", (userid,))
+  cur.execute("SELECT COUNT(*) FROM pq_bad WHERE userid=%s", (userid,))
+  flagged = cur.fetchone()[0]
+  timepenalty = (flagged**3)//16
+  logger.info('penalty %d' % timepenalty)
+  cur.execute("SELECT COUNT(*) FROM pq WHERE userid=%s AND date > DATE_SUB(NOW(), INTERVAL %s MINUTE)", (userid, 60+timepenalty))
   res = cur.fetchone()[0]
   return res
 
@@ -290,7 +294,7 @@ def db_get_photo(cur, fid):
 @retry(5)
 @with_cursor
 def get_filtered_usernames(cur):
-  cur.execute("SELECT DISTINCT username FROM options2 LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo USING (chatinfo_id) WHERE filter_username > 0 AND username IS NOT NULL LIMIT 10")
+  cur.execute("SELECT DISTINCT username FROM options2 LEFT JOIN chatinfo_current USING (convid) LEFT JOIN chatinfo USING (chatinfo_id) WHERE filter_username > 0 AND username IS NOT NULL")
   return ['@' + x[0].lower() for x in cur]
 
 @cached(TTLCache(1024, 15*60))

@@ -32,6 +32,10 @@ def getage_u(cursor, fid):
   cursor.execute("SELECT MAX(UNIX_TIMESTAMP(added_on)) FROM file_ids WHERE file_unique_id=%s", (fid,))
   return cursor.fetchone()[0]
 
+def missing_fidrow(cursor, fuid):
+  cursor.execute("SELECT COUNT(*) FROM file_ids WHERE file_unique_id=%s", (fuid,))
+  return cursor.fetchone()[0] == 0
+
 @with_cursor
 def delete_dbentry(cursor, fid):
   cursor.execute("DELETE FROM downloaded_files WHERE unique_id=%s", (fid,))
@@ -63,6 +67,7 @@ def check_files(cursor, directory, extension):
     mtime = os.path.getmtime(fullname)
     filesize = os.path.getsize(fullname)
     fileage = (curtime-mtime)/60/60/24
+    is_orphan = False
     assert fileage >= 0
     if fileage < minage:
       newcnt += 1
@@ -72,28 +77,30 @@ def check_files(cursor, directory, extension):
       good, bad = getcounts_u(cursor, fileid)
       lastdate = getage_u(cursor, fileid)
       isuniq = True
+      is_orphan = missing_fidrow(cursor, fileid)
     else:
       good, bad = getcounts(cursor, fileid)
       lastdate = getage(cursor, fileid)
       isuniq = False
     if (good is None) or (bad is None):
-      print('File not in DB? %s age %.2f' % (fileid, fileage))
-      continue
-    lastage = (curtime-lastdate)/60/60/24
-    assert lastage>0
-    if lastage < minage:
+      print('File not in DB? %s age %.2f orphan=%s' % (fileid, fileage, is_orphan))
+      if not is_orphan:
+        continue
+    lastage = 0 if lastdate is None else (curtime-lastdate)/60/60/24
+    assert lastage>0 or is_orphan
+    if lastage < minage and not is_orphan:
       newcnt += 1
       continue
     #print('%s %s %s' % (fileid, good, bad))
-    if (good > 0) and (filesize > minsize):
+    if (not is_orphan) and (good > 0) and (filesize > minsize):
       goodcnt += 1
       continue
-    assert bad > 0 or filesize <= minsize
+    assert is_orphan or bad > 0 or filesize <= minsize
 
     proccnt += 1
     delsize += filesize
-    print("[T: %6d U: %6d N: %6d G: %6d P:%6d %.2f MB] File %s %.1f kB %.2f/%.2f days old good %d bad %d" % (totalcnt, uniqidcnt, newcnt, goodcnt, proccnt, delsize / 1024 / 1024, fileid, filesize / 1024, fileage, lastage, good, bad))
-    print("Deleting %s" % fullname)
+    print("[T: %6d U: %6d N: %6d G: %6d P:%6d %.2f MB] File %s %.1f kB %.2f/%.2f days old good %d bad %d" % (totalcnt, uniqidcnt, newcnt, goodcnt, proccnt, delsize / 1024 / 1024, fileid, filesize / 1024, fileage, lastage, 0 if good is None else good, 0 if bad is None else bad))
+    #print("Deleting %s" % fullname)
     if isuniq:
       delete_dbentry(fileid)
     os.remove(fullname)
@@ -115,8 +122,19 @@ def check_chat_files(cur):
   for r in res:
     cur.execute("DELETE FROM chat_files WHERE id=%s", r)
 
+@with_cursor
+def check_file_ids(cur):
+  cur.execute("SELECT COUNT(*) FROM file_ids")
+  cnt = cur.fetchone()[0]
+  cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE chat_files.id IS NULL AND chat_sticker.id IS NULL LIMIT 100000")
+  res = cur.fetchall()
+  print("Deleting %d/%d file_ids" % (len(res), cnt))
+  for r in res:
+    cur.execute("DELETE FROM file_ids WHERE id=%s", r)
+
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
 
 check_file_text()
 check_chat_files()
+check_file_ids()

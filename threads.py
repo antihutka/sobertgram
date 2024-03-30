@@ -1,6 +1,9 @@
 import traceback
 import sys
+import logging
 from threading import Thread
+
+logger = logging.getLogger(__name__)
 
 def wthread(q, n):
   while True:
@@ -8,7 +11,7 @@ def wthread(q, n):
     try:
       task()
     except Exception as e:
-      print('Exception in thread %s: %s' % (n, str(e)))
+      logger.error('Exception in thread %s: %s' % (n, str(e)))
       traceback.print_exc(file=sys.stdout)
     q.task_done()
 
