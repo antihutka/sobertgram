@@ -84,6 +84,7 @@ def setup_logging():
   console.setLevel(logging.INFO if verbose else logging.WARNING)
   logfile = logging.FileHandler(Config.get('Logging', 'Logfile'))
   logfile.setLevel(logging.INFO)
+  logging.getLogger('httpx').setLevel(logging.WARN)
   logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, handlers = [console, logfile])
 setup_logging()
 
@@ -103,6 +104,7 @@ def get_cache_key(bot, ci):
 @asyncache.cached(TTLCache(1024, 120), key = get_cache_key)
 async def can_send_message(bot, ci):
   self_member = await bot.get_chat_member(ci, bot.id)
+  logger.info("member status %d %s", ci, self_member.status)
   if self_member.status == 'restricted' and not self_member.can_send_messages:
     return False
   return True
@@ -147,6 +149,9 @@ def get_default_badwords_for(ci):
   return tgdatabase.get_default_badwords(gbwcount)
 
 async def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
+  if not await can_send_message(bot, ci):
+    logger.warning("Can't send message to %d, no perms", ci)
+    return
   backend = get_backend_for(ci)
   if await backend.queued_for_key(str(ci)) > 16:
     logger.warning('Warning: reply queue full, dropping reply')
@@ -377,7 +382,7 @@ async def photo(update: Update, context: CallbackContext):
   if txt:
     attr += '; caption=' + txt
     await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-    if should_reply(context.bot, update.message, ci, txt):
+    if await should_reply(context.bot, update.message, ci, txt):
       await sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   async def process_photo(f):
