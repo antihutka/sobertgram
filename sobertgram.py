@@ -240,15 +240,18 @@ class BlacklistingLogger():
 
 blkLog = BlacklistingLogger()
 
+async def nothing():
+  pass
+
 # TODO test/fix for blacklisted chats
 def update_wrap(f):
   def wrapped(update: Update, context: CallbackContext):
     if not update.message:
-      return
+      return nothing()
     is_blacklisted = options.get_option(update.message.chat_id, 'blacklisted') > 0 or options.get_option(update.message.from_user.id, 'user_blacklisted') > 0
     if is_blacklisted:
       blkLog.bad()
-      return
+      return nothing()
     blkLog.good()
     return f(update = update, context = context)
   return wrapped
@@ -680,6 +683,7 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   annid = int(section.split(':')[1])
   annurl = Config.get(section, 'Url')
   ann = HTTPNN(annurl, Config.get('Backend', 'Keyprefix'))
+  ann.initialize2()
   #ann.run_thread()
   #ann.loop.set_default_executor(nnexec)
   backends[annid] = ann
