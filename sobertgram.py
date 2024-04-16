@@ -205,7 +205,6 @@ async def download_file(bot, fid, filename, convid, on_finish=None):
 
 async def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   logger.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
-  await put(ci, txt)
 
   reply_to_id = message.reply_to_message.message_id if message.reply_to_message else None
   conversation = message.chat
@@ -214,6 +213,7 @@ async def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
   fwdchat = message.forward_origin.sender_chat if isinstance(message.forward_origin, T.MessageOriginChat) else (message.forward_origin.chat if isinstance(message.forward_origin, T.MessageOriginChannel) else None)
 
   log(0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
+  await put(ci, txt)
 
 def cifrofron(update):
   ci = update.message.chat_id
