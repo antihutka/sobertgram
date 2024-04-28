@@ -175,9 +175,14 @@ def is_file_downloaded(cur, uniqid):
   else:
     return None
 
+
+@inqueue(logqueue)
 @retry(5)
 @with_cursor
 def log_file_download(cur, uniqid, fpath, fsize):
+  cur.execute("SELECT COUNT(*) FROM `downloaded_files` WHERE `unique_id` = %s", (uniqid,))
+  if cur.fetchone()[0] > 0:
+    return
   cur.execute("INSERT INTO `downloaded_files` (`unique_id`, `path`, `size`) VALUES (%s, %s, %s)", (uniqid, fpath, fsize))
 
 def get_id_by_uniq(cur, uniq_id):
