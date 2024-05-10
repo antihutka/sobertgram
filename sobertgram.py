@@ -128,15 +128,16 @@ async def try_reply(repfun, *args, **kwargs):
       m = await repfun(*args, **kwargs)
       return m
     except Exception as e:
+      logger.warning("Got exception %s", e)
       if (isinstance(e, T.error.BadRequest) and 
           'reply_to_message_id' in kwargs and 
           kwargs['reply_to_message_id']):
         logger.warning('Got BadRequest, trying without reply_to_message_id')
         del kwargs['reply_to_message_id']
         continue
-      if (isinstance(e, T.error.Unauthorized)):
-        logger.warning('Unauthorized, bot kicked from group?')
-        return None
+#      if (isinstance(e, T.error.Unauthorized)):
+#        logger.warning('Unauthorized, bot kicked from group?')
+#        return None
       logger.exception('I got this error')
       return None
 
