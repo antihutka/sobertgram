@@ -496,18 +496,18 @@ async def cmd_start(update: Update, context: CallbackContext):
   logger.info('%s/%d /start' % (fro, ci))
   await sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
 
-def user_is_admin(bot, convid, userid, owner_only):
+async def user_is_admin(bot, convid, userid, owner_only):
   if convid > 0:
     return True
-  member = bot.get_chat_member(convid, userid)
+  member = await bot.get_chat_member(convid, userid)
   if (member.status == 'administrator' and not owner_only) or member.status == 'creator':
     return True
   return False
 
-def admin_check(bot, convid, userid, option_name='admin_only'):
+async def admin_check(bot, convid, userid, option_name='admin_only'):
   if options.get_option(convid, option_name) == 0:
     return True
-  return user_is_admin(bot, convid, userid, options.get_option(convid, option_name) >= 2)
+  return await user_is_admin(bot, convid, userid, options.get_option(convid, option_name) >= 2)
 
 @update_wrap
 #@cmd_ratelimit
@@ -517,7 +517,7 @@ async def cmd_option_set(update: Update, context: CallbackContext):
   if (len(txt) != 3):
     await cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.')
     return
-  if not admin_check(context.bot, ci, update.message.from_user.id):
+  if not await admin_check(context.bot, ci, update.message.from_user.id):
      await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
      return
   opt = txt[1]
@@ -579,7 +579,7 @@ async def cmd_help(update: Update, context: CallbackContext):
 async def cmd_pq(update: Update, context: CallbackContext):
   ci, fro, fron, froi = cifrofron(update)
 
-  if not admin_check(context.bot, ci, update.message.from_user.id, option_name='admin_only_pq'):
+  if not await admin_check(context.bot, ci, update.message.from_user.id, option_name='admin_only_pq'):
      await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
      return
 
@@ -639,7 +639,7 @@ async def cmd_badword(update: Update, context: CallbackContext):
       repl += "\nDefault bad words: %s (%d)" % (', '.join(repr(w) for w in gbws), len(gbws))
     await cmdreply(context.bot, ci, repl)
   else:
-    if not admin_check(context.bot, ci, froi):
+    if not await admin_check(context.bot, ci, froi):
       await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
       return
     badword = msg_split[1].strip().lower()
