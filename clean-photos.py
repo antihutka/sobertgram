@@ -136,8 +136,10 @@ def check_file_ids(cur):
 def purge_replies(cur):
   cur.execute("SELECT COUNT(*) FROM replies")
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id FROM chat INNER JOIN replies USING (id) WHERE convid IN (SELECT convid FROM purge_chats WHERE purge_level>0) LIMIT 120000")
+  cur.execute("SELECT id FROM chat INNER JOIN replies USING (id) WHERE convid IN (SELECT convid FROM purge_chats WHERE purge_level>0) LIMIT 150000")
   res = cur.fetchall()
+  if not res:
+    return
   print("Deleting %d/%d replies (%d-%d)" % (len(res), cnt, res[0][0], res[-1][0]))
   for r in res:
     cur.execute("DELETE FROM replies WHERE id=%s", r)
