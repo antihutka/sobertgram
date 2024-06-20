@@ -149,7 +149,7 @@ def get_default_badwords_for(ci):
     gbwcount = 3
   return tgdatabase.get_default_badwords(gbwcount)
 
-async def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, conversation = None, user=None):
+async def sendreply(bot, ci, fro, froi, fron, frot, replyto=None, replyto_cond=None, conversation = None, user=None):
   if not await can_send_message(bot, ci):
     logger.warning("Can't send message to %d, no perms", ci)
     return
@@ -174,13 +174,13 @@ async def sendreply(bot, ci, fro, froi, fron, replyto=None, replyto_cond=None, c
       logger.info('sending as sticker %s/%s' % (rs[2], rs[0]))
       dbid = []
       log_sticker(1, msg, rs[0], None, rs[2], reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-      m = await try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to)
+      m = await try_reply(bot.sendSticker, chat_id=ci, sticker=rs[0], reply_to_message_id = reply_to, message_thread_id=frot)
       if m:
         log_add_msg_id(dbid, m.message_id)
       return
   dbid = []
   log(1, msg, original_message = None, reply_to_id = replyto_cond, conversation=conversation, user=user, rowid_out = dbid)
-  m = await try_reply(bot.sendMessage, chat_id=ci, text=msg, reply_to_message_id=reply_to)
+  m = await try_reply(bot.sendMessage, chat_id=ci, text=msg, reply_to_message_id=reply_to, message_thread_id=frot)
   if m:
     log_add_msg_id(dbid, m.message_id)
 
@@ -221,7 +221,8 @@ def cifrofron(update):
   fro = user_name(update.message.from_user)
   fron = chatname(update.message.chat)
   froi = update.message.from_user.id
-  return ci, fro, fron, froi
+  frot = update.message.message_thread_id
+  return ci, fro, fron, froi, frot
 
 async def should_reply(bot, msg, ci, txt = None):
   if msg and msg.reply_to_message and msg.reply_to_message.from_user.id == bot.id:
@@ -264,7 +265,7 @@ def update_wrap(f):
 
 @update_wrap
 async def msg(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   message = update.message
   txt = update.message.text
   if options.get_option(ci, 'ignore_commands') > 0 and is_nonstandard_command(txt):
@@ -272,16 +273,16 @@ async def msg(update: Update, context: CallbackContext):
   last_msg_id[ci] = update.message.message_id
   await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
   if await should_reply(context.bot, update.message, ci):
-    await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+    await sendreply(context.bot, ci, fro, froi, fron, frot, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 @update_wrap
 async def me(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
   await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
-  await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+  await sendreply(context.bot, ci, fro, froi, fron, frot, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 def emojiname(emoji):
   try:
@@ -291,7 +292,7 @@ def emojiname(emoji):
 
 @update_wrap
 async def sticker(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot= cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
   st = update.message.sticker
@@ -310,12 +311,12 @@ async def sticker(update: Update, context: CallbackContext):
     fwduser = fwduser, fwdchat = fwdchat, conversation=update.message.chat, user=update.message.from_user,
     learn_sticker = can_learn)
   if await should_reply(context.bot, update.message, ci):
-    await sendreply(context.bot, ci, fro, froi, fron, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+    await sendreply(context.bot, ci, fro, froi, fron, frot, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   await download_file(context.bot, st.file_id, 'stickers2/%s/%s %s.%s' % (fix_name(set), fix_name(st.file_unique_id), fix_name(emojiname(emo)), 'tgs' if st.is_animated else 'webp'), convid=ci);
 
 @update_wrap
 async def video(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   vid = update.message.video
   fid = vid.file_id
   uid = vid.file_unique_id
@@ -330,7 +331,7 @@ async def video(update: Update, context: CallbackContext):
 
 @update_wrap
 async def document(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   doc = update.message.document
   fid = doc.file_id
   uid = doc.file_unique_id
@@ -348,7 +349,7 @@ async def document(update: Update, context: CallbackContext):
 
 @update_wrap
 async def audio(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   aud = update.message.audio
   fid = aud.file_id
   uid = aud.file_unique_id
@@ -366,7 +367,7 @@ async def audio(update: Update, context: CallbackContext):
 
 @update_wrap
 async def photo(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   message = update.message
   last_msg_id[ci] = update.message.message_id
   txt = update.message.caption
@@ -384,7 +385,7 @@ async def photo(update: Update, context: CallbackContext):
     attr += '; caption=' + txt
     await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
     if await should_reply(context.bot, update.message, ci, txt):
-      await sendreply(context.bot, ci, fro, froi, fron, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+      await sendreply(context.bot, ci, fro, froi, fron, frot, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   async def process_photo(f):
     logger.info('OCR running on %s' % f)
@@ -399,7 +400,7 @@ async def photo(update: Update, context: CallbackContext):
     await put(ci, ocrtext)
     if (Config.get('Chat', 'Keyword') in ocrtext.lower()):
       logger.info('sending reply')
-      await sendreply(context.bot, ci, fro, froi, fron, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
+      await sendreply(context.bot, ci, fro, froi, fron, frot, replyto=update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   if options.get_option(ci, 'ignore_files') > 0:
     return
   log_file('photo', maxsize, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
@@ -415,7 +416,7 @@ async def cmd_download_photo(update: Update, context: CallbackContext):
 
 @update_wrap
 async def voice(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   voi = update.message.voice
   fid = voi.file_id
   uid = voi.file_unique_id
@@ -430,7 +431,7 @@ async def voice(update: Update, context: CallbackContext):
 @update_wrap
 async def status(update: Update, context: CallbackContext):
   msg = update.message
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   upd = []
   if msg.new_chat_members:
     for mmb in msg.new_chat_members:
@@ -451,12 +452,12 @@ async def status(update: Update, context: CallbackContext):
     logger.info('[UPDATE] %s / %s: %s  %s' % (fron, fro, u[0], u[1]))
   log_status(upd, conversation=update.message.chat, user=update.message.from_user)
 
-async def cmdreply(bot, ci, text):
+async def cmdreply(bot, ci, text, threadid = None):
   if options.get_option(ci, 'silent_commands') > 0:
     logger.info('=> [silent] %s', text)
     return
   logger.info('=> %s' % text)
-  msg = await bot.sendMessage(chat_id=ci, text=text)
+  msg = await bot.sendMessage(chat_id=ci, text=text, message_thread_id=threadid)
   command_replies.add((ci, msg.message_id))
 
 async def riwt(*args):
@@ -464,7 +465,7 @@ async def riwt(*args):
 
 @update_wrap
 async def cmd_givesticker(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   foremo = None
   cmd = update.message.text
   m = re.match('^/[^ ]+ (.+)', cmd)
@@ -472,11 +473,11 @@ async def cmd_givesticker(update: Update, context: CallbackContext):
     foremo = m.group(1).strip()
   rs = await riwt(rand_sticker, foremo)
   if not rs:
-    await cmdreply(context.bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis_g()))))
+    await cmdreply(context.bot, ci, '<no sticker for %s>\n%s' % (foremo, ''.join(list(sticker_emojis_g()))), frot)
   else:
     fid, emo, set = rs
     logger.info('%s/%s/%d: [giving random sticker: <%s> <%s>]' % (fron, fro, ci, fid, set))
-    await context.bot.sendSticker(chat_id=ci, sticker=fid)
+    await context.bot.sendSticker(chat_id=ci, sticker=fid, message_thread_id=frot)
 
 def cmd_ratelimit(inf):
   def outf(update: Update, context: CallbackContext):
@@ -489,12 +490,12 @@ def cmd_ratelimit(inf):
 @update_wrap
 #@cmd_ratelimit
 async def cmd_start(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   if options.get_option(ci, 'silent_commands') > 0:
     logger.info('ignoring /start')
     return
   logger.info('%s/%d /start' % (fro, ci))
-  await sendreply(context.bot, ci, fro, froi, fron, conversation=update.message.chat, user = update.message.from_user)
+  await sendreply(context.bot, ci, fro, froi, fron, frot, conversation=update.message.chat, user = update.message.from_user)
 
 async def user_is_admin(bot, convid, userid, owner_only):
   if convid > 0:
@@ -514,19 +515,20 @@ async def admin_check(bot, convid, userid, option_name='admin_only'):
 async def cmd_option_set(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   txt = update.message.text.split()
+  frot = update.message.message_thread_id
   if (len(txt) != 3):
-    await cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.')
+    await cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.', frot)
     return
   if not await admin_check(context.bot, ci, update.message.from_user.id):
-     await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+     await cmdreply(context.bot, ci, '< you are not allowed to use this command >', frot)
      return
   opt = txt[1]
   val = txt[2]
   try:
     await riwt(options.set_option, ci, opt, val)
-    await cmdreply(context.bot, ci, '<option %s set to %s>' % (opt, val))
+    await cmdreply(context.bot, ci, '<option %s set to %s>' % (opt, val), frot)
   except options.OptionError as oe:
-    await cmdreply(context.bot, ci, '<%s>' % (str(oe),))
+    await cmdreply(context.bot, ci, '<%s>' % (str(oe),), frot)
 
 @update_wrap
 async def cmd_option_flush(update: Update, context: CallbackContext):
@@ -551,11 +553,11 @@ async def cmd_option_list(update: Update, context: CallbackContext):
       repl += "\nDefault: users: %s, groups: %s" % (opt.default_user, opt.default_group)
     repl += "\nCurrent value: %s" % (options.get_option(ci, opt.name))
     repl += "\n%s" % (opt.description)
-  await cmdreply(context.bot, update.message.chat_id, repl)
+  await cmdreply(context.bot, update.message.chat_id, repl, update.message.message_thread_id)
 
 @update_wrap
 async def logcmd(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   txt = update.message.text
   logger.info('[COMMAND] %s/%s: %s' % (fron, fro, txt))
   log_cmd(txt, conversation = update.message.chat, user = update.message.from_user)
@@ -572,36 +574,36 @@ Commands:
 @update_wrap
 #@cmd_ratelimit
 async def cmd_help(update: Update, context: CallbackContext):
-  await cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),))
+  await cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),), update.message.message_thread_id)
 
 @update_wrap
 # @cmd_ratelimit #TODO untested
 async def cmd_pq(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
 
   if not await admin_check(context.bot, ci, update.message.from_user.id, option_name='admin_only_pq'):
-     await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+     await cmdreply(context.bot, ci, '< you are not allowed to use this command >', frot)
      return
 
   msg = update.message
   if (not msg.reply_to_message) or (msg.reply_to_message.from_user.id != context.bot.id):
-    await cmdreply(context.bot, ci, '<send that as a reply to my message!>')
+    await cmdreply(context.bot, ci, '<send that as a reply to my message!>', frot)
     return
 
   repl = msg.reply_to_message
   replid = repl.message_id
 
   if (repl.sticker or not repl.text):
-    await cmdreply(context.bot, ci, '<only regular text messages are supported>')
+    await cmdreply(context.bot, ci, '<only regular text messages are supported>', frot)
     return
   if (replid in pqed_messages) or (already_pqd(repl.text)):
-    await cmdreply(context.bot, ci, '<message already forwarded>')
+    await cmdreply(context.bot, ci, '<message already forwarded>', frot)
     return
   if (ci, replid) in command_replies:
-    await cmdreply(context.bot, ci, '<that is a silly thing to forward!>')
+    await cmdreply(context.bot, ci, '<that is a silly thing to forward!>', frot)
     return
   if pq_limit_check(froi) >= 5:
-    await cmdreply(context.bot, ci, '<slow down a little!>')
+    await cmdreply(context.bot, ci, '<slow down a little!>', frot)
     return
   await context.bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
   pqed_messages.add(replid)
@@ -610,7 +612,7 @@ async def cmd_pq(update: Update, context: CallbackContext):
 @update_wrap
 #@cmd_ratelimit
 async def cmd_stats(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   s = await riwt(db_stats, ci)
   quality_s = ("%.0f%%" % (s['quality']*100)) if s['quality'] else "Unknown"
   lin = []
@@ -623,12 +625,12 @@ async def cmd_stats(update: Update, context: CallbackContext):
   if s['badness'] is not None:
     lin.append('Chat badness: %.1f%%' % (s['badness'] * 100))
   lin.append('Users/groups active in the last 48 hours: %d/%d' % (s['actusr'], s['actgrp']))
-  await cmdreply(context.bot, ci, '\n'.join(lin))
+  await cmdreply(context.bot, ci, '\n'.join(lin), frot)
 
 @update_wrap
 #@cmd_ratelimit
 async def cmd_badword(update: Update, context: CallbackContext):
-  ci, fro, fron, froi = cifrofron(update)
+  ci, fro, fron, froi, frot = cifrofron(update)
   msg = update.message.text
   msg_split = msg.split(' ', 1)
   bw = get_badwords(ci)
@@ -637,33 +639,33 @@ async def cmd_badword(update: Update, context: CallbackContext):
     gbws = get_default_badwords_for(ci)
     if gbws:
       repl += "\nDefault bad words: %s (%d)" % (', '.join(repr(w) for w in gbws), len(gbws))
-    await cmdreply(context.bot, ci, repl)
+    await cmdreply(context.bot, ci, repl, frot)
   else:
     if not await admin_check(context.bot, ci, froi):
-      await cmdreply(context.bot, ci, '< you are not allowed to use this command >')
+      await cmdreply(context.bot, ci, '< you are not allowed to use this command >', frot)
       return
     badword = msg_split[1].strip().lower()
     if '\n' in badword:
-      await cmdreply(context.bot, ci, '< Bad word contains newline >')
+      await cmdreply(context.bot, ci, '< Bad word contains newline >', frot)
       return
     if badword in bw:
       await riwt(delete_badword, ci, badword)
-      await cmdreply(context.bot, ci, '< Bad word %s removed >' % (repr(badword)))
+      await cmdreply(context.bot, ci, '< Bad word %s removed >' % (repr(badword)), frot)
     elif any((existing in badword) for existing in bw):
       ebws = list(filter(lambda e: e in badword, bw))
-      await cmdreply(context.bot, ci, '< Bad word %s already matched by %s >' % (repr(badword), repr(ebws)))
+      await cmdreply(context.bot, ci, '< Bad word %s already matched by %s >' % (repr(badword), repr(ebws)), frot)
     else:
       redundant = list(filter(lambda e: badword in e, bw))
       await riwt(add_badword, ci, badword, froi, redundant)
       rmsg = ("\n< Redundant badwords %s removed >" % repr(redundant)) if redundant else ""
-      await cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg))
+      await cmdreply(context.bot, ci, '< Bad word %s added >%s' % (repr(badword), rmsg), frot)
 
 @update_wrap
 async def cmd_secret_for(update: Update, context: CallbackContext):
   msg_split = update.message.text.split(' ', 1)
   userid = update.message.from_user.id if len(msg_split) < 2 else int(msg_split[1])
   stats = tgdatabase.userstats(userid)
-  await cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats)
+  await cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats, update.message.message_thread_id)
 
 def thr_console():
   for line in sys.stdin:
