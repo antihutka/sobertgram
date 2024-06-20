@@ -204,8 +204,8 @@ async def download_file(bot, fid, filename, convid, on_finish=None):
     await on_finish(filename)
   downloaded_files.add(fid)
 
-async def getmessage(bot, ci, fro, froi, fron, txt, msg_id, message):
-  logger.info('%s/%s/%d: %s' % (fron, fro, ci, txt))
+async def getmessage(bot, ci, fro, froi, fron, frot, txt, msg_id, message):
+  logger.info('%s/%s/%d/%s: %s' % (fron, fro, ci, frot, txt))
 
   reply_to_id = message.reply_to_message.message_id if message.reply_to_message else None
   conversation = message.chat
@@ -271,7 +271,7 @@ async def msg(update: Update, context: CallbackContext):
   if options.get_option(ci, 'ignore_commands') > 0 and is_nonstandard_command(txt):
     return
   last_msg_id[ci] = update.message.message_id
-  await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+  await getmessage(context.bot, ci, fro, froi, fron, frot, txt, update.message.message_id, update.message)
   if await should_reply(context.bot, update.message, ci):
     await sendreply(context.bot, ci, fro, froi, fron, frot, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
@@ -281,7 +281,7 @@ async def me(update: Update, context: CallbackContext):
   message = update.message
   txt = update.message.text
   last_msg_id[ci] = update.message.message_id
-  await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+  await getmessage(context.bot, ci, fro, froi, fron, frot, txt, update.message.message_id, update.message)
   await sendreply(context.bot, ci, fro, froi, fron, frot, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
 
 def emojiname(emoji):
@@ -383,7 +383,7 @@ async def photo(update: Update, context: CallbackContext):
   attr = 'dim=%dx%d' % (pho.width, pho.height)
   if txt:
     attr += '; caption=' + txt
-    await getmessage(context.bot, ci, fro, froi, fron, txt, update.message.message_id, update.message)
+    await getmessage(context.bot, ci, fro, froi, fron, frot, txt, update.message.message_id, update.message)
     if await should_reply(context.bot, update.message, ci, txt):
       await sendreply(context.bot, ci, fro, froi, fron, frot, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
