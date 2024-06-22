@@ -515,7 +515,7 @@ async def admin_check(bot, convid, userid, option_name='admin_only'):
 async def cmd_option_set(update: Update, context: CallbackContext):
   ci = update.message.chat_id
   txt = update.message.text.split()
-  frot = update.message.message_thread_id
+  frot = update.message.message_thread_id if update.message.is_topic_message else None
   if (len(txt) != 3):
     await cmdreply(context.bot, ci, 'Invalid syntax, use /option_set <option> <value>.\nUse /option_list to list options.', frot)
     return
@@ -553,7 +553,7 @@ async def cmd_option_list(update: Update, context: CallbackContext):
       repl += "\nDefault: users: %s, groups: %s" % (opt.default_user, opt.default_group)
     repl += "\nCurrent value: %s" % (options.get_option(ci, opt.name))
     repl += "\n%s" % (opt.description)
-  await cmdreply(context.bot, update.message.chat_id, repl, update.message.message_thread_id)
+  await cmdreply(context.bot, update.message.chat_id, repl, update.message.message_thread_id if update.message.is_topic_message else None)
 
 @update_wrap
 async def logcmd(update: Update, context: CallbackContext):
@@ -574,7 +574,7 @@ Commands:
 @update_wrap
 #@cmd_ratelimit
 async def cmd_help(update: Update, context: CallbackContext):
-  await cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),), update.message.message_thread_id)
+  await cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),), update.message.message_thread_id if update.message.is_topic_message else None)
 
 @update_wrap
 # @cmd_ratelimit #TODO untested
@@ -665,7 +665,7 @@ async def cmd_secret_for(update: Update, context: CallbackContext):
   msg_split = update.message.text.split(' ', 1)
   userid = update.message.from_user.id if len(msg_split) < 2 else int(msg_split[1])
   stats = tgdatabase.userstats(userid)
-  await cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats, update.message.message_thread_id)
+  await cmdreply(context.bot, update.message.chat_id, 'Stats for %s' % stats, update.message.message_thread_id if update.message.is_topic_message else None)
 
 def thr_console():
   for line in sys.stdin:
