@@ -221,7 +221,7 @@ def cifrofron(update):
   fro = user_name(update.message.from_user)
   fron = chatname(update.message.chat)
   froi = update.message.from_user.id
-  frot = update.message.message_thread_id
+  frot = update.message.message_thread_id if update.message.is_topic_message else None
   return ci, fro, fron, froi, frot
 
 async def should_reply(bot, msg, ci, txt = None):
