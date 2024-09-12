@@ -576,6 +576,19 @@ Commands:
 async def cmd_help(update: Update, context: CallbackContext):
   await cmdreply(context.bot, update.message.chat_id, helpstring % (Config.get('Telegram', 'QuoteChannel'),), update.message.message_thread_id if update.message.is_topic_message else None)
 
+privacystring = """Text messages are stored and used for retraining the chat model.
+The chat model is only used to provide Sobert's chat functionality.
+Stickers are learned and randomly used.
+Photos are downloaded and OCR-ed, the text is used in chat context. The files are deleted after 7 days.
+Other file types are ignored. All files are ignored if the ignore_files option is set.
+"""
+
+@update_wrap
+#@cmd_ratelimit
+async def cmd_privacy(update: Update, context: CallbackContext):
+  await cmdreply(context.bot, update.message.chat_id, privacystring, update.message.message_thread_id if update.message.is_topic_message else None)
+
+
 @update_wrap
 # @cmd_ratelimit #TODO untested
 async def cmd_pq(update: Update, context: CallbackContext):
@@ -712,6 +725,7 @@ app.add_handler(MessageHandler(filters.PHOTO, photo), 2)
 app.add_handler(MessageHandler(filters.VOICE, voice), 2)
 app.add_handler(MessageHandler(filters.StatusUpdate.ALL, status), 2)
 app.add_handler(CommandHandler('help', cmd_help), 3)
+app.add_handler(CommandHandler('privacy', cmd_privacy), 3)
 app.add_handler(CommandHandler('pq', cmd_pq), 3)
 app.add_handler(CommandHandler('stats', cmd_stats), 3)
 app.add_handler(CommandHandler('start', cmd_start), 3)
