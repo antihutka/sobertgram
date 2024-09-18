@@ -150,7 +150,7 @@ def purge_stickers(cur):
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id FROM chat INNER JOIN chat_sticker USING (id) WHERE convid IN (SELECT convid FROM purge_chats WHERE purge_level>0) LIMIT 20000")
   res = cur.fetchall()
-  print("Deleting %d/%d stickers (%d-%d)" % (len(res), cnt, res[0][0], res[-1][0]))
+  print("Deleting %d/%d stickers (%d-%d)" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0))
   for r in res:
     cur.execute("DELETE FROM chat_sticker WHERE id=%s", r)
 
