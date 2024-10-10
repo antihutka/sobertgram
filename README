@@ -1,0 +1,2 @@
+A Telegram bot that uses python-telegram-bot and pytorch-rnn.
+It's probably not worth trying to reuse as is, all of the interesting stuff is in pytorch-rnn.
