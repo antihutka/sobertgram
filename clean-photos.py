@@ -147,8 +147,8 @@ def purge_replies(cur):
   cur.execute("SELECT id FROM chat INNER JOIN replies USING (id) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 150000", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d replies (%d-%d), id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
-#  for r in res:
-#    cur.execute("DELETE FROM replies WHERE id=%s", r)
+  for r in res:
+    cur.execute("DELETE FROM replies WHERE id=%s", r)
 
 @with_cursor
 def purge_stickers(cur):
@@ -158,14 +158,31 @@ def purge_stickers(cur):
   cur.execute("SELECT id FROM chat INNER JOIN chat_sticker USING (id) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 20000", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d stickers (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
-#  for r in res:
-#    cur.execute("DELETE FROM chat_sticker WHERE id=%s", r)
+  for r in res:
+    cur.execute("DELETE FROM chat_sticker WHERE id=%s", r)
 
-#check_files('photo', '.jpg')
-#check_files('voice', '.opus')
+@with_cursor
+def purge_unique_messages(cur):
+  startid, endid, maxid = pick_startid(cur, "chat")
+  cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
+  cnt = cur.fetchone()[0]
+  cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND LENGTH(text) > 100 AND count = 1"
+              " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from)", (startid, endid))
+  res = cur.fetchall()
+  print("Deleting %d/%d messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
+  for r in res:
+    cur.execute("DELETE FROM chat WHERE id=%s", (r[0],))
+    assert(cur.rowcount == 1)
+    cur.execute("DELETE FROM chat_hashcounts WHERE hash=%s AND count=1", (r[1],))
+    assert(cur.rowcount == 1)
+
+check_files('photo', '.jpg')
+check_files('voice', '.opus')
+
 
 check_file_text()
 check_chat_files()
 check_file_ids()
 purge_replies()
 purge_stickers()
+purge_unique_messages()
