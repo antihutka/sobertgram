@@ -122,13 +122,15 @@ def check_chat_files(cur):
   for r in res:
     cur.execute("DELETE FROM chat_files WHERE id=%s", r)
 
+def pick_startid(cur, tablename, colname='id', rowcnt=1000000):
+  cur.execute("SELECT MAX(" + colname + ") FROM " + tablename)
+  maxid = cur.fetchone()[0]
+  startid = random.randint(0, maxid-rowcnt) if maxid > rowcnt else 0;
+  return startid, startid+rowcnt, maxid
+
 @with_cursor
 def check_file_ids(cur):
-  rows_to_check = 1000000
-  cur.execute("SELECT MAX(id) FROM file_ids")
-  maxid = cur.fetchone()[0]
-  startid = random.randint(0, maxid-rows_to_check) if maxid > rows_to_check else 0
-  endid = startid + rows_to_check
+  startid, endid, maxid = pick_startid(cur, "file_ids")
   cur.execute("SELECT COUNT(*) FROM file_ids WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
   cur.execute("SELECT file_ids.id FROM file_ids LEFT JOIN chat_files USING (file_id) LEFT JOIN chat_sticker USING (file_id) WHERE file_ids.id BETWEEN %s AND %s AND chat_files.id IS NULL AND chat_sticker.id IS NULL", (startid, endid))
@@ -139,21 +141,23 @@ def check_file_ids(cur):
 
 @with_cursor
 def purge_replies(cur):
-  cur.execute("SELECT COUNT(*) FROM replies")
+  startid, endid, maxid = pick_startid(cur, "replies")
+  cur.execute("SELECT COUNT(*) FROM replies WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id FROM chat INNER JOIN replies USING (id) WHERE convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 150000")
+  cur.execute("SELECT id FROM chat INNER JOIN replies USING (id) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 150000", (startid, endid))
   res = cur.fetchall()
-  print("Deleting %d/%d replies (%d-%d)" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0))
+  print("Deleting %d/%d replies (%d-%d), id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
 #  for r in res:
 #    cur.execute("DELETE FROM replies WHERE id=%s", r)
 
 @with_cursor
 def purge_stickers(cur):
-  cur.execute("SELECT COUNT(*) FROM chat_sticker")
+  startid, endid, maxid = pick_startid(cur, "chat_sticker");
+  cur.execute("SELECT COUNT(*) FROM chat_sticker WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id FROM chat INNER JOIN chat_sticker USING (id) WHERE convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 20000")
+  cur.execute("SELECT id FROM chat INNER JOIN chat_sticker USING (id) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 20000", (startid, endid))
   res = cur.fetchall()
-  print("Deleting %d/%d stickers (%d-%d)" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0))
+  print("Deleting %d/%d stickers (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
 #  for r in res:
 #    cur.execute("DELETE FROM chat_sticker WHERE id=%s", r)
 
@@ -163,5 +167,5 @@ def purge_stickers(cur):
 check_file_text()
 check_chat_files()
 check_file_ids()
-#purge_replies()
-#purge_stickers()
+purge_replies()
+purge_stickers()
