@@ -217,7 +217,7 @@ async def getmessage(bot, ci, fro, froi, fron, frot, txt, msg_id, message):
   await put(ci, txt)
 
 def cifrofron(update):
-  ci = update.message.chat_id
+  ci = update.message.chat_id if update.message else None
   fro = user_name(update.message.from_user)
   fron = chatname(update.message.chat)
   froi = update.message.from_user.id
@@ -428,8 +428,9 @@ async def voice(update: Update, context: CallbackContext):
   await download_file(context.bot, fid, 'voice/' + fix_name(uid) + '.opus', convid=ci)
   log_file('voice', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
-@update_wrap
+#@update_wrap
 async def status(update: Update, context: CallbackContext):
+  logger.info("got status update:", (str(update)))
   msg = update.message
   ci, fro, fron, froi, frot = cifrofron(update)
   upd = []
@@ -443,6 +444,9 @@ async def status(update: Update, context: CallbackContext):
     upd.append(('new_title', msg.new_chat_title, None))
   if msg.group_chat_created:
     upd.append(('group_created', '', None))
+    if options.get_option(froi, 'user_blacklisted') > 0:
+      logger.info("Blacklisting chat!")
+      await riwt(options.set_option, ci, 'blacklisted', 2, False)
   if msg.supergroup_chat_created:
     upd.append(('supergroup_created', '', None))
   if msg.migrate_from_chat_id:
