@@ -122,7 +122,7 @@ def check_chat_files(cur):
   for r in res:
     cur.execute("DELETE FROM chat_files WHERE id=%s", r)
 
-def pick_startid(cur, tablename, colname='id', rowcnt=1000000):
+def pick_startid(cur, tablename, colname='id', rowcnt=10000000):
   cur.execute("SELECT MAX(" + colname + ") FROM " + tablename)
   maxid = cur.fetchone()[0]
   startid = random.randint(0, maxid-rowcnt) if maxid > rowcnt else 0;
@@ -178,7 +178,6 @@ def purge_unique_messages(cur):
 
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
-
 
 check_file_text()
 check_chat_files()
