@@ -176,6 +176,28 @@ def purge_unique_messages(cur):
     cur.execute("DELETE FROM chat_hashcounts WHERE hash=%s AND count=1", (r[1],))
     assert(cur.rowcount == 1)
 
+@with_cursor
+def purge_duplicate_messages(cur):
+  startid, endid, maxid = pick_startid(cur, "chat")
+  cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
+  cnt = cur.fetchone()[0]
+  cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND LENGTH(text) > 100 AND count > 1"
+              " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from) AND hash IN (SELECT hash FROM bad_messages) AND message_id <> id", (startid, endid))
+  res = cur.fetchall()
+  print("Deleting %d/%d duplicate messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
+  deleted = set()
+  skipped = 0
+  for r in res:
+    if r[1] in deleted:
+      skipped += 1
+      continue
+    deleted.add(r[1])
+    cur.execute("DELETE FROM chat WHERE id=%s", (r[0],))
+    assert(cur.rowcount == 1)
+    cur.execute("UPDATE chat_hashcounts SET count = count - 1 WHERE hash=%s AND count>1", (r[1],))
+    assert(cur.rowcount == 1)
+  print("Deleted %d, skipped %d" % (len(deleted), skipped))
+
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
 
@@ -185,3 +207,4 @@ check_file_ids()
 purge_replies()
 purge_stickers()
 purge_unique_messages()
+purge_duplicate_messages()
