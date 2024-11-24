@@ -155,7 +155,7 @@ def purge_stickers(cur):
   startid, endid, maxid = pick_startid(cur, "chat_sticker");
   cur.execute("SELECT COUNT(*) FROM chat_sticker WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id FROM chat INNER JOIN chat_sticker USING (id) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 20000", (startid, endid))
+  cur.execute("SELECT id FROM chat INNER JOIN chat_sticker USING (id) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) LIMIT 30000", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d stickers (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
   for r in res:
@@ -166,7 +166,7 @@ def purge_unique_messages(cur):
   startid, endid, maxid = pick_startid(cur, "chat")
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND LENGTH(text) > 100 AND count = 1"
+  cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND LENGTH(text) > 32 AND count = 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from)", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
