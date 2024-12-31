@@ -437,6 +437,9 @@ async def status(update: Update, context: CallbackContext):
   if msg.new_chat_members:
     for mmb in msg.new_chat_members:
       upd.append(('new_member', str(mmb.id) + ' ' + user_name(mmb), mmb))
+      if mmb.id == context.bot.bot.id and options.get_option(froi, 'user_blacklisted') > 0:
+        logger.info("Should be blacklisting chat!")
+        await riwt(options.set_option, ci, 'blacklisted', 2, False)
   if msg.left_chat_member:
     mmb = msg.left_chat_member
     upd.append(('left_member', str(mmb.id) + ' ' + user_name(mmb), mmb))
