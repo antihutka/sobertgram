@@ -430,7 +430,7 @@ async def voice(update: Update, context: CallbackContext):
 
 #@update_wrap
 async def status(update: Update, context: CallbackContext):
-  logger.info("got status update:", (str(update)))
+  logger.info("got status update: %s", (str(update)))
   msg = update.message
   ci, fro, fron, froi, frot = cifrofron(update)
   upd = []
