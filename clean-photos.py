@@ -210,13 +210,15 @@ check_file_ids()
 purge_replies()
 purge_stickers()
 
+iters = 0
 dltd = 0
-while dltd < 200000:
+while dltd < 200000 and (iters < 10 or dltd/iters > 100):
   dltd += purge_unique_messages()
+  iters += 1
   try:
     dltd += purge_duplicate_messages()
   except OperationalError as e:
     if e.args[0] != 1213:
       raise
     print("Deadlocked.")
-  print("Total deleted %d messages." % (dltd,))
+  print("Total deleted %d messages in %d iterations (%.1f/it)." % (dltd, iters, dltd/iters))
