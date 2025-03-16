@@ -596,6 +596,8 @@ async def cmd_privacy(update: Update, context: CallbackContext):
   await cmdreply(context.bot, update.message.chat_id, privacystring, update.message.message_thread_id if update.message.is_topic_message else None)
 
 
+pq_lock = asyncio.Lock()
+
 @update_wrap
 # @cmd_ratelimit #TODO untested
 async def cmd_pq(update: Update, context: CallbackContext):
@@ -616,18 +618,20 @@ async def cmd_pq(update: Update, context: CallbackContext):
   if (repl.sticker or not repl.text):
     await cmdreply(context.bot, ci, '<only regular text messages are supported>', frot)
     return
-  if (replid in pqed_messages) or (already_pqd(repl.text)):
-    await cmdreply(context.bot, ci, '<message already forwarded>', frot)
-    return
-  if (ci, replid) in command_replies:
-    await cmdreply(context.bot, ci, '<that is a silly thing to forward!>', frot)
-    return
-  if pq_limit_check(froi) >= 5:
-    await cmdreply(context.bot, ci, '<slow down a little!>', frot)
-    return
-  await context.bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
-  pqed_messages.add(replid)
-  log_pq(ci, froi, repl.text)
+
+  async with pq_lock:
+    if (replid in pqed_messages) or (already_pqd(repl.text)):
+      await cmdreply(context.bot, ci, '<message already forwarded>', frot)
+      return
+    if (ci, replid) in command_replies:
+      await cmdreply(context.bot, ci, '<that is a silly thing to forward!>', frot)
+      return
+    if pq_limit_check(froi) >= 5:
+      await cmdreply(context.bot, ci, '<slow down a little!>', frot)
+      return
+    await context.bot.forwardMessage(chat_id=Config.get('Telegram', 'QuoteChannel'), from_chat_id=ci, message_id=replid)
+    pqed_messages.add(replid)
+    log_pq(ci, froi, repl.text)
 
 @update_wrap
 #@cmd_ratelimit
@@ -716,7 +720,7 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   #ann.loop.set_default_executor(nnexec)
   backends[annid] = ann
 
-app = ApplicationBuilder().token(Config.get('Telegram','Token')).concurrent_updates(True).build()
+app = ApplicationBuilder().token(Config.get('Telegram','Token')).concurrent_updates(1024).build()
 
 app.add_handler(CommandHandler('me', me), 0)
 app.add_handler(MessageHandler(filters.COMMAND, logcmd), 0)
