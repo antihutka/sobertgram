@@ -105,7 +105,7 @@ def check_files(cursor, directory, extension):
     if isuniq:
       delete_dbentry(fileid)
     os.remove(fullname)
-    time.sleep(0.1)
+    time.sleep(0.05)
 
 @with_cursor
 def check_file_text(cur):
@@ -180,13 +180,13 @@ def purge_unique_messages(cur):
 
 @with_cursor
 def purge_duplicate_messages(cur):
-  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=1000000)
+  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from)"
-              " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 250 OR count > 1000)"
-              " AND message_id <> id LIMIT 1000", (startid, endid))
+              " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 80 OR count > 1000)"
+              " AND message_id <> id LIMIT 1200", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d duplicate messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
   deleted = set()
@@ -214,7 +214,7 @@ purge_stickers()
 
 iters = 0
 dltd = 0
-while dltd < 200000 and (iters < 10 or dltd/iters > 100):
+while dltd < 200000 and (iters < 20 or dltd/iters > 100):
   dltd += purge_unique_messages()
   iters += 1
   try:
