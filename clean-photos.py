@@ -170,7 +170,7 @@ def purge_unique_messages(cur):
   startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count = 1"
+  cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count = 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from) LIMIT 100000", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
@@ -179,6 +179,8 @@ def purge_unique_messages(cur):
     assert(cur.rowcount == 1)
     cur.execute("DELETE FROM chat_hashcounts WHERE hash=%s AND count=1", (r[1],))
     assert(cur.rowcount == 1)
+    cur.execute("UPDATE chat_uniqueness SET deleted_count = deleted_count + 1 WHERE convid=%s", (r[2],))
+    assert(cur.rowcount == 1)
   return len(res)
 
 @with_cursor
@@ -186,7 +188,7 @@ def purge_duplicate_messages(cur, hint):
   startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000, hint=hint)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
-  cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
+  cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from)"
               " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 80 OR count > 1000)"
               " AND message_id <> id LIMIT 1500", (startid, endid))
@@ -202,6 +204,8 @@ def purge_duplicate_messages(cur, hint):
     cur.execute("DELETE FROM chat WHERE id=%s", (r[0],))
     assert(cur.rowcount == 1)
     cur.execute("UPDATE chat_hashcounts SET count = count - 1 WHERE hash=%s AND count>1", (r[1],))
+    assert(cur.rowcount == 1)
+    cur.execute("UPDATE chat_uniqueness SET deleted_count = deleted_count + 1 WHERE convid=%s", (r[2],))
     assert(cur.rowcount == 1)
   print("Deleted %d, skipped %d" % (len(deleted), skipped))
   return len(deleted), res[-1][0] if len(deleted)>100 else None
