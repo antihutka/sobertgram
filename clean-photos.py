@@ -123,10 +123,13 @@ def check_chat_files(cur):
   for r in res:
     cur.execute("DELETE FROM chat_files WHERE id=%s", r)
 
-def pick_startid(cur, tablename, colname='id', rowcnt=10000000):
+def pick_startid(cur, tablename, colname='id', rowcnt=10000000, hint=None):
   cur.execute("SELECT MAX(" + colname + ") FROM " + tablename)
   maxid = cur.fetchone()[0]
-  startid = random.randint(0, maxid-rowcnt) if maxid > rowcnt else 0;
+  if hint is None:
+    startid = random.randint(0, maxid-rowcnt) if maxid > rowcnt else 0
+  else:
+    startid = hint
   return startid, startid+rowcnt, maxid
 
 @with_cursor
@@ -179,8 +182,8 @@ def purge_unique_messages(cur):
   return len(res)
 
 @with_cursor
-def purge_duplicate_messages(cur):
-  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000)
+def purge_duplicate_messages(cur, hint):
+  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000, hint=hint)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id, hash FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
@@ -201,7 +204,7 @@ def purge_duplicate_messages(cur):
     cur.execute("UPDATE chat_hashcounts SET count = count - 1 WHERE hash=%s AND count>1", (r[1],))
     assert(cur.rowcount == 1)
   print("Deleted %d, skipped %d" % (len(deleted), skipped))
-  return len(deleted)
+  return len(deleted), res[-1][0] if len(deleted)>100 else None
 
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
@@ -214,13 +217,16 @@ purge_stickers()
 
 iters = 0
 dltd = 0
+dhint = None
 while dltd < 300000 and (iters < 20 or dltd/iters > 100):
   dltd += purge_unique_messages()
   iters += 1
   try:
-    dltd += purge_duplicate_messages()
+    dltd1, dhint = purge_duplicate_messages(dhint)
+    dltd += dltd1
   except OperationalError as e:
     if e.args[0] != 1213:
       raise
     print("Deadlocked.")
+    dhint = None
   print("Total deleted %d messages in %d iterations (%.1f/it)." % (dltd, iters, dltd/iters))
