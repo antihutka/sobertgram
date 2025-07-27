@@ -191,7 +191,7 @@ def purge_duplicate_messages(cur, hint):
   cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from)"
               " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 80 OR count > 1000)"
-              " AND message_id <> id LIMIT 1500", (startid, endid))
+              " AND message_id <> id LIMIT 2000", (startid, endid))
   res = cur.fetchall()
   print("Deleting %d/%d duplicate messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid))
   deleted = set()
@@ -210,8 +210,8 @@ def purge_duplicate_messages(cur, hint):
   print("Deleted %d, skipped %d" % (len(deleted), skipped))
   return len(deleted), res[-1][0] if len(deleted)>100 else None
 
-check_files('photo', '.jpg')
-check_files('voice', '.opus')
+#check_files('photo', '.jpg')
+#check_files('voice', '.opus')
 
 check_file_text()
 check_chat_files()
@@ -232,5 +232,4 @@ while dltd < 300000 and (iters < 20 or dltd/iters > 100):
     if e.args[0] != 1213:
       raise
     print("Deadlocked.")
-    dhint = None
   print("Total deleted %d messages in %d iterations (%.1f/it)." % (dltd, iters, dltd/iters))
