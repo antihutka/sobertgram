@@ -126,7 +126,7 @@ def pick_startid(cur, tablename, colname='id', rowcnt=10000000, hint=None):
   cur.execute("SELECT MAX(" + colname + ") FROM " + tablename)
   maxid = cur.fetchone()[0]
   if hint is None:
-    startid = random.randint(0, maxid-rowcnt) if maxid > rowcnt else 0
+    startid = random.randint(0, (maxid*85//100)-rowcnt) if maxid > rowcnt else 0
   else:
     startid = hint
   return startid, startid+rowcnt, maxid
@@ -172,7 +172,7 @@ def purge_unique_messages(cur):
   cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count = 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from) LIMIT 100000", (startid, endid))
   res = cur.fetchall()
-  print("Deleting %d/%d messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid), end='\t', flush=True)
+  print("Deleting %6d/%6d messages (%9d-%9d) id %9d-%9d/%9d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid), end='\t', flush=True)
   for r in res:
     cur.execute("DELETE FROM chat WHERE id=%s", (r[0],))
     assert(cur.rowcount == 1)
@@ -184,7 +184,7 @@ def purge_unique_messages(cur):
 
 @with_cursor
 def purge_duplicate_messages(cur, hint):
-  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000, hint=hint)
+  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=150000, hint=hint)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
@@ -192,9 +192,10 @@ def purge_duplicate_messages(cur, hint):
               " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 70 OR count > 1000)"
               " AND message_id <> id LIMIT 3000", (startid, endid))
   res = cur.fetchall()
-  print("Deleting %d/%d duplicate messages (%d-%d) id %d-%d/%d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid), end='\t', flush=True)
+  print("Deleting %4d/%6d duplicate messages (%9d-%9d) id %9d-%9d/%9d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid), end='\t', flush=True)
   deleted = set()
   skipped = 0
+  lastdel = None
   for r in res:
     if r[1] in deleted:
       skipped += 1
@@ -206,8 +207,9 @@ def purge_duplicate_messages(cur, hint):
     assert(cur.rowcount == 1)
     cur.execute("UPDATE chat_uniqueness SET deleted_count = deleted_count + 1 WHERE convid=%s", (r[2],))
     assert(cur.rowcount == 1)
-  print("Deleted %d, skipped %d" % (len(deleted), skipped))
-  return len(deleted), res[-1][0] if len(deleted)>100 else None
+    lastdel = r[0]
+  print("Deleted %4d, skipped %4d" % (len(deleted), skipped), end='\t', flush=True)
+  return len(deleted), lastdel if len(deleted)>100 else None
 
 check_files('photo', '.jpg')
 check_files('voice', '.opus')
@@ -230,5 +232,5 @@ while dltd < 300000 and (iters < 30 or dltd/iters > 100):
   except OperationalError as e:
     if e.args[0] != 1213:
       raise
-    print("Deadlocked.")
+    print("Deadlocked." + " "*15, end='\t', flush=True)
   print("Total deleted %d messages in %d iterations (%.1f/it)." % (dltd, iters, dltd/iters))
