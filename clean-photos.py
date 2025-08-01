@@ -165,8 +165,8 @@ def purge_stickers(cur):
     cur.execute("DELETE FROM chat_sticker WHERE id=%s", r)
 
 @with_cursor
-def purge_unique_messages(cur):
-  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000)
+def purge_unique_messages(cur, hint):
+  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=100000, hint=hint)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count = 1"
@@ -180,7 +180,7 @@ def purge_unique_messages(cur):
     assert(cur.rowcount == 1)
     cur.execute("UPDATE chat_uniqueness SET deleted_count = deleted_count + 1 WHERE convid=%s", (r[2],))
     assert(cur.rowcount == 1)
-  return len(res)
+  return len(res), res[-1][0] if len(res) > 100 else None
 
 @with_cursor
 def purge_duplicate_messages(cur, hint):
@@ -211,8 +211,8 @@ def purge_duplicate_messages(cur, hint):
   print("Deleted %4d, skipped %4d" % (len(deleted), skipped), end='\t', flush=True)
   return len(deleted), lastdel if len(deleted)>100 else None
 
-check_files('photo', '.jpg')
-check_files('voice', '.opus')
+#check_files('photo', '.jpg')
+#check_files('voice', '.opus')
 
 check_file_text()
 check_chat_files()
@@ -222,9 +222,11 @@ purge_stickers()
 
 iters = 0
 dltd = 0
+uhint = None
 dhint = None
-while dltd < 300000 and (iters < 30 or dltd/iters > 100):
-  dltd += purge_unique_messages()
+while dltd < 300000 and (iters < 50 or dltd/iters > 100):
+  dltd0, uhint = purge_unique_messages(uhint)
+  dltd += dltd0
   iters += 1
   try:
     dltd1, dhint = purge_duplicate_messages(dhint)
