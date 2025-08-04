@@ -211,13 +211,14 @@ def purge_duplicate_messages(cur, hint):
   print("Deleted %4d, skipped %4d" % (len(deleted), skipped), end='\t', flush=True)
   return len(deleted), lastdel if len(deleted)>100 else None
 
-#check_files('photo', '.jpg')
-#check_files('voice', '.opus')
+check_files('photo', '.jpg')
+check_files('voice', '.opus')
 
 check_file_text()
 check_chat_files()
 check_file_ids()
-purge_replies()
+for i in range(0,3):
+  purge_replies()
 purge_stickers()
 
 iters = 0
