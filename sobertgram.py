@@ -365,6 +365,13 @@ async def audio(update: Update, context: CallbackContext):
     await download_file(context.bot, fid, 'audio/' + '%s %s - %s%s' % (fix_name(uid), fix_name(aud.performer), fix_name(aud.title), fix_name(ext)), convid=ci)
   log_file('audio', size, attr, fid, uid, conversation=update.message.chat, user=update.message.from_user)
 
+def run_tesseract(f):
+  logger.info('OCR running on %s' % f)
+  ocrtext = subprocess.check_output(['tesseract', f, 'stdout']).decode('utf8', errors='ignore')
+  ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
+  logger.info('OCR: "%s"' % ocrtext)
+  return ocrtext
+
 @update_wrap
 async def photo(update: Update, context: CallbackContext):
   ci, fro, fron, froi, frot = cifrofron(update)
@@ -388,10 +395,7 @@ async def photo(update: Update, context: CallbackContext):
       await sendreply(context.bot, ci, fro, froi, fron, frot, replyto = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)
   logger.info('%s/%s: photo, %d, %s, %s' % (fron, fro, maxsize, fid, attr))
   async def process_photo(f):
-    logger.info('OCR running on %s' % f)
-    ocrtext = subprocess.check_output(['tesseract', f, 'stdout']).decode('utf8', errors='ignore')
-    ocrtext = re.sub('[\r\n]+', '\n',ocrtext).strip()
-    logger.info('OCR: "%s"' % ocrtext)
+    ocrtext = await riwt(run_tesseract, f)
     if ocrtext == "":
       return
     log_file_text(fid, 'ocr', ocrtext)
