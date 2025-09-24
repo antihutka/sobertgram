@@ -171,8 +171,9 @@ def purge_unique_messages(cur, hint):
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count = 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from) LIMIT 100000", (startid, endid))
-  res = cur.fetchall()
+  res = list(cur.fetchall())
   print("Deleting %6d/%6d messages (%9d-%9d) id %9d-%9d/%9d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid), end='\t', flush=True)
+  res.sort(key = lambda x: x[1])
   for r in res:
     cur.execute("DELETE FROM chat WHERE id=%s", (r[0],))
     assert(cur.rowcount == 1)
@@ -225,7 +226,7 @@ iters = 0
 dltd = 0
 uhint = None
 dhint = None
-while dltd < 300000 and (iters < 50 or dltd/iters > 100):
+while dltd < 300000 and (iters < 50 or dltd/iters > 50):
   dltd0, uhint = purge_unique_messages(uhint)
   dltd += dltd0
   iters += 1
