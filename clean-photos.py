@@ -185,12 +185,12 @@ def purge_unique_messages(cur, hint):
 
 @with_cursor
 def purge_duplicate_messages(cur, hint):
-  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=150000, hint=hint)
+  startid, endid, maxid = pick_startid(cur, "chat", rowcnt=250000, hint=hint)
   cur.execute("SELECT COUNT(*) FROM chat WHERE id BETWEEN %s AND %s", (startid, endid))
   cnt = cur.fetchone()[0]
   cur.execute("SELECT id, hash, convid FROM chat LEFT JOIN chat_hashcounts ON (hash=UNHEX(SHA2(text,256))) WHERE id BETWEEN %s AND %s AND convid IN (SELECT convid FROM options2 WHERE purge_chat>0) AND count > 1"
               " AND id NOT IN (SELECT id FROM replies) AND id NOT IN (SELECT id FROM chat_sticker) AND id NOT IN (SELECT id FROM forwarded_from)"
-              " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 70 OR count > 1000)"
+              " AND (hash IN (SELECT hash FROM bad_messages) OR LENGTH(text) > 20 OR count > 30)"
               " AND message_id <> id LIMIT 3000", (startid, endid))
   res = cur.fetchall()
   print("Deleting %4d/%6d duplicate messages (%9d-%9d) id %9d-%9d/%9d" % (len(res), cnt, res[0][0] if res else 0, res[-1][0] if res else 0, startid, endid, maxid), end='\t', flush=True)
