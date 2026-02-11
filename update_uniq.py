@@ -16,7 +16,9 @@ def get_dbcon():
   return db, cur
 
 def add_new_chats(db, cur):
-  cur.execute("INSERT INTO chat_uniqueness(convid) SELECT DISTINCT convid FROM chat_counters WHERE sent=0 AND message_count >= 100 AND convid NOT IN (SELECT convid FROM chat_uniqueness)")
+  #cur.execute("INSERT INTO chat_uniqueness(convid) SELECT DISTINCT convid FROM chat_counters WHERE sent=0 AND message_count >= 100 AND convid NOT IN (SELECT convid FROM chat_uniqueness)")
+  cur.execute("INSERT INTO chat_uniqueness(convid) SELECT DISTINCT convid FROM chat_counters WHERE sent=0 AND message_count >= 100 EXCEPT (SELECT convid FROM chat_uniqueness)")
+  #cur.execute("INSERT INTO chat_uniqueness (convid) SELECT c.convid FROM chat_counters c LEFT JOIN chat_uniqueness u ON u.convid = c.convid WHERE c.sent = 0 AND c.message_count >= 100 AND u.convid IS NULL")
   db.commit()
   if cur.rowcount > 0:
     print("Added %d new chats" % cur.rowcount)
