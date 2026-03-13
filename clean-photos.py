@@ -221,7 +221,7 @@ def purge_duplicate_messages(cur, hint):
     assert(cur.rowcount == 1)
     lastdel = r[0]
   print("Deleted %4d, skipped %4d" % (len(deleted), skipped), end='\t', flush=True)
-  return len(deleted), lastdel if len(deleted)>100 else None
+  return len(deleted), lastdel if len(deleted)>20 else None
 
 check_files('photo', '.jpg')
 check_files('voice', '.opus')

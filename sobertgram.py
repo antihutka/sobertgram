@@ -213,7 +213,7 @@ async def getmessage(bot, ci, fro, froi, fron, frot, txt, msg_id, message):
   fwduser = message.forward_origin.sender_user if isinstance(message.forward_origin, T.MessageOriginUser) else None
   fwdchat = message.forward_origin.sender_chat if isinstance(message.forward_origin, T.MessageOriginChat) else (message.forward_origin.chat if isinstance(message.forward_origin, T.MessageOriginChannel) else None)
 
-  log(0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat)
+  log(0, txt, msg_id=msg_id, reply_to_id=reply_to_id, conversation=conversation, user=user, fwduser=fwduser, fwdchat=fwdchat, via=message.via_bot)
   await put(ci, txt)
 
 def cifrofron(update):
@@ -270,6 +270,8 @@ async def msg(update: Update, context: CallbackContext):
   txt = update.message.text
   if options.get_option(ci, 'ignore_commands') > 0 and is_nonstandard_command(txt):
     return
+  if message.via_bot:
+    logger.info("[via] %s", message.via_bot)
   last_msg_id[ci] = update.message.message_id
   await getmessage(context.bot, ci, fro, froi, fron, frot, txt, update.message.message_id, update.message)
   if await should_reply(context.bot, update.message, ci):
@@ -308,7 +310,7 @@ async def sticker(update: Update, context: CallbackContext):
   fwdchat = message.forward_origin.sender_chat if isinstance(message.forward_origin, T.MessageOriginChat) else (message.forward_origin.chat if isinstance(message.forward_origin, T.MessageOriginChannel) else None)
 
   log_sticker(0, emo, st.file_id, st.file_unique_id, set, msg_id = update.message.message_id, reply_to_id = update.message.reply_to_message.message_id if update.message.reply_to_message else None,
-    fwduser = fwduser, fwdchat = fwdchat, conversation=update.message.chat, user=update.message.from_user,
+    fwduser = fwduser, fwdchat = fwdchat, conversation=update.message.chat, user=update.message.from_user, via=update.message.via_bot,
     learn_sticker = can_learn)
   if await should_reply(context.bot, update.message, ci):
     await sendreply(context.bot, ci, fro, froi, fron, frot, replyto_cond = update.message.message_id, conversation=update.message.chat, user = update.message.from_user)

@@ -40,11 +40,12 @@ def get_chatinfo_id(cur, chat):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log(cur, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None):
+def log(cur, sent, text, original_message = None, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None, via = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
   fwdchat_id = get_chatinfo_id(cur, fwdchat)
+  via_id = get_chatinfo_id(cur, via)
   conv = conversation.id
   fromid = user.id
   cur.execute("INSERT INTO `chat` (`convid`, `fromid`, `sent`, `text`, `msg_id`, chatinfo_id, userinfo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)", (conv, fromid, sent, text, msg_id, chatinfo_id, userinfo_id))
@@ -55,6 +56,8 @@ def log(cur, sent, text, original_message = None, msg_id = None, reply_to_id = N
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
   if fwduser or fwdchat:
     cur.execute("INSERT INTO `forwarded_from` (`id`, `fwd_userinfo_id`, `fwd_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (fwduser_id, fwdchat_id))
+  if via:
+    cur.execute("INSERT INTO `chat_via` (`id`, `via_user`, `via_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (via.id, via_id))
   if rowid_out is not None:
     rowid_out.append(rowid)
   return rowid
@@ -75,11 +78,12 @@ def log_file_id(cur, file_id, file_unique_id):
 @inqueue(logqueue)
 @retry(10)
 @with_cursor
-def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None, learn_sticker = False):
+def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = None, reply_to_id = None, conversation=None, user=None, rowid_out = None, fwduser = None, fwdchat = None, learn_sticker = False, via = None):
   chatinfo_id = get_chatinfo_id(cur, conversation)
   userinfo_id = get_chatinfo_id(cur, user)
   fwduser_id = get_chatinfo_id(cur, fwduser)
   fwdchat_id = get_chatinfo_id(cur, fwdchat)
+  via_id = get_chatinfo_id(cur, via)
   conv = conversation.id
   fromid = user.id
   if not sent:
@@ -91,6 +95,8 @@ def log_sticker(cur, sent, text, file_id, file_unique_id, set_name, msg_id = Non
     cur.execute("INSERT INTO `replies` (`id`, `reply_to`) VALUES (LAST_INSERT_ID(), %s)", (reply_to_id,))
   if fwduser or fwdchat:
     cur.execute("INSERT INTO `forwarded_from` (`id`, `fwd_userinfo_id`, `fwd_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (fwduser_id, fwdchat_id))
+  if via:
+    cur.execute("INSERT INTO `chat_via` (`id`, `via_user`, `via_chatinfo_id`) VALUES (LAST_INSERT_ID(), %s, %s)", (via.id, via_id))
   if learn_sticker and file_unique_id and file_unique_id not in known_stickers:
     cur.execute("SELECT COUNT(*) FROM `stickers` WHERE `file_id` = %s", (file_unique_id,))
     (exists,) = cur.fetchone()
