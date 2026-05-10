@@ -11,6 +11,7 @@ class HTTPNN:
     self.url = url
     self.keyprefix = keyprefix
     self.locks = {}
+    self.client = None
 
   def get_lock(self, key):
     if key not in self.locks:
@@ -29,6 +30,7 @@ class HTTPNN:
       rj = await response.json()
 
   async def put(self, key, message):
+    self.initialize_lazy()
     async with self.get_lock(key):
       return await self.put_(key, message)
 
@@ -40,11 +42,13 @@ class HTTPNN:
     return rj['text']
 
   async def get(self, key, bad_words = []):
+    self.initialize_lazy()
     async with self.get_lock(key):
       return await self.get_(key, bad_words)
 
-  def initialize2(self):
-    self.client = aiohttp.ClientSession(timeout = aiohttp.ClientTimeout(1800))
+  def initialize_lazy(self):
+    if self.client is None:
+      self.client = aiohttp.ClientSession(timeout = aiohttp.ClientTimeout(1800))
 
   async def initialize(self):
     self.client = aiohttp.ClientSession(loop = self.loop, timeout = aiohttp.ClientTimeout(1800))

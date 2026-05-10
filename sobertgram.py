@@ -713,7 +713,7 @@ threads.start_thread(target=thr_console, args=())
 
 
 nn = HTTPNN(Config.get('Backend', 'Url'), Config.get('Backend', 'Keyprefix'))
-nn.initialize2()
+#nn.initialize2()
 #nn.run_thread()
 #nnexec = ThreadPoolExecutor(max_workers=4)
 #nn.loop.set_default_executor(nnexec)
@@ -724,7 +724,7 @@ for section in (x for x in Config.sections() if x.startswith('Backend:')):
   annid = int(section.split(':')[1])
   annurl = Config.get(section, 'Url')
   ann = HTTPNN(annurl, Config.get('Backend', 'Keyprefix'))
-  ann.initialize2()
+  #ann.initialize2()
   #ann.run_thread()
   #ann.loop.set_default_executor(nnexec)
   backends[annid] = ann
